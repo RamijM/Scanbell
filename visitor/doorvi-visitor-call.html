@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanbell | Visitor Call</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --bg: #0f172a;
+            --text: #f8fafc;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 40px;
+            border-radius: 32px;
+            width: 90%;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 18px 30px;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn:disabled {
+            background: #334155;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 25px;
+            color: #94a3b8;
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .house-no {
+            color: var(--primary);
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .target-id {
+            font-size: 11px;
+            color: #64748b;
+            font-family: monospace;
+        }
+
+        #video-container {
+            width: 100%;
+            height: 220px;
+            background: #000;
+            border-radius: 20px;
+            margin-top: 20px;
+            display: none;
+            overflow: hidden;
+            border: 2px solid var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>🔔 Scanbell</h1>
+        <div class="house-no">House <span id="house-display">...</span></div>
+        <div class="target-id">Handshake ID: <span id="id-display">Connecting...</span></div>
+
+        <p id="msg" style="margin: 20px 0;">Wait for the green light, then press the button to ring the bell.</p>
+
+        <button id="call-btn" class="btn" disabled>Wait for Connection...</button>
+
+        <div id="video-container">
+            <div id="local-video" style="width:100%; height:100%;"></div>
+        </div>
+
+        <div class="status" id="status-text">🔄 Initializing RTM...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@1.5.1/index.js"></script>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const appId = params.get('appid') || '469ff9909237486f8e9bf8526e09899c';
+        const channel = params.get('channelName') || 'house_32_channel';
+        const houseNo = channel.split('_')[1] || '32';
+        const targetId = `house_${houseNo}`;
+        const myId = `visitor_${Math.floor(Math.random() * 10000)}`;
+
+        document.getElementById('house-display').innerText = houseNo;
+        document.getElementById('id-display').innerText = targetId;
+
+        let rtmClient, isRtmLoggedIn = false;
+
+        async function init() {
+            try {
+                rtmClient = AgoraRTM.createInstance(appId);
+
+                rtmClient.on('MessageFromPeer', async (message, peerId) => {
+                    console.log('Signal from app:', message.text);
+                    if (message.text === 'CALL_ACCEPTED') {
+                        updateStatus('✅ Answered! Connecting Video...');
+                        startVideoCall();
+                    } else if (message.text === 'CALL_REJECTED') {
+                        updateStatus('⛔ Homeowner is busy. Try again later.');
+                        document.getElementById('call-btn').disabled = false;
+                    }
+                });
+
+                await rtmClient.login({ uid: myId });
+                isRtmLoggedIn = true;
+                updateStatus('🟢 System Online - Ready to Ring');
+                document.getElementById('call-btn').innerText = 'Ring Doorbell';
+                document.getElementById('call-btn').disabled = false;
+                document.getElementById('call-btn').style.background = '#22c55e';
+            } catch (err) {
+                updateStatus('❌ Connection Failed: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        async function ringBell() {
+            if (!isRtmLoggedIn) return;
+            document.getElementById('call-btn').disabled = true;
+            updateStatus('🔔 Ringing... Waiting for Homeowner');
+
+            try {
+                console.log('Sending CALL_REQUEST to:', targetId);
+                await rtmClient.sendMessageToPeer({ text: 'CALL_REQUEST' }, targetId);
+                updateStatus('🔔 Signal Sent! Keep this page open.');
+            } catch (err) {
+                updateStatus('❌ Signal Failed. Please Refresh.');
+                document.getElementById('call-btn').disabled = false;
+            }
+        }
+
+        async function startVideoCall() {
+            const rtcClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+            await rtcClient.join(appId, channel, null, 2);
+            const localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+            document.getElementById('video-container').style.display = 'block';
+            localTracks[1].play("local-video");
+            await rtcClient.publish(localTracks);
+            updateStatus('🎥 Live Call Active');
+            document.getElementById('msg').innerText = "One-way call: Owner can see you. You cannot see them.";
+        }
+
+        function updateStatus(text) { document.getElementById('status-text').innerText = text; }
+        document.getElementById('call-btn').onclick = ringBell;
+        init();
+    </script>
+</body>
+
+</html>
