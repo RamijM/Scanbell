@@ -1,12 +1,7 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import {
-  View,
-  StyleSheet,
-  PermissionsAndroid,
-  Platform,
-  Text,
-  TouchableOpacity,
-  Dimensions,
+  View, StyleSheet, PermissionsAndroid, Platform, Text, TouchableOpacity,
+  Dimensions, StatusBar,
 } from 'react-native';
 import { AppContext } from '../context/AppContext';
 import {
@@ -16,193 +11,179 @@ import {
   RtcSurfaceView,
 } from 'react-native-agora';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export default function CallScreen({ navigation }) {
   const { userDetails } = useContext(AppContext);
   const agoraEngineRef = useRef(null);
   const hasTerminated = useRef(false);
-  const isMountedRef = useRef(true); // ✅ track if component is still mounted
+  const isMountedRef = useRef(true);
+  const timerRef = useRef(null);
 
   const [isJoined, setIsJoined] = useState(false);
   const [remoteUid, setRemoteUid] = useState(0);
   const [status, setStatus] = useState('Setting up camera...');
+  const [isMuted, setIsMuted] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   const appId = '469ff9909237486f8e9bf8526e09899c';
   const channelName = `house_${userDetails?.houseNo || '32'}_channel`;
 
+  // ── Call Timer ────────────────────────────────────────────────────────────
   useEffect(() => {
-    console.log('[CallScreen] ✅ Mounted');
+    if (remoteUid !== 0) {
+      timerRef.current = setInterval(() => setCallDuration(p => p + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setCallDuration(0);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [remoteUid]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  };
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    console.log('[CallScreen] ✅ Mounted (Safe Version)');
     isMountedRef.current = true;
-    hasTerminated.current = false; // ✅ reset on every fresh mount
+    hasTerminated.current = false;
     setupVideoSDKEngine();
 
     return () => {
-      console.log('[CallScreen] 🔴 Unmounting — running cleanup');
-      isMountedRef.current = false; // ✅ mark as unmounted
+      console.log('[CallScreen] 🔴 Unmounting');
+      isMountedRef.current = false;
       terminateSession('unmount');
     };
   }, []);
 
   const setupVideoSDKEngine = async () => {
-    console.log('[CallScreen] 🔧 Setting up engine...');
     try {
       if (Platform.OS === 'android') {
-        console.log('[CallScreen] 📱 Requesting permissions...');
-        const result = await PermissionsAndroid.requestMultiple([
+        await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.CAMERA,
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         ]);
-        console.log('[CallScreen] 📱 Permissions:', result);
       }
 
-      if (agoraEngineRef.current) {
-        console.log('[CallScreen] ⚠️ Engine already exists, skipping');
-        return;
-      }
+      if (agoraEngineRef.current) return;
 
-      console.log('[CallScreen] 🏗️ Creating engine...');
-      agoraEngineRef.current = createAgoraRtcEngine();
-      const engine = agoraEngineRef.current;
+      const engine = createAgoraRtcEngine();
+      agoraEngineRef.current = engine;
 
       engine.initialize({ appId });
-      console.log('[CallScreen] ✅ Engine initialized');
-
       engine.enableVideo();
-      console.log('[CallScreen] 📹 Video enabled');
+      engine.enableAudio();
+
+      // LOCK PRIVACY: Admin can see visitor, but visitor sees black
+      engine.muteLocalVideoStream(true);
+      console.log('[CallScreen] 🔒 Privacy Mode Active');
 
       engine.registerEventHandler({
         onJoinChannelSuccess: () => {
-          console.log('[CallScreen] ✅ Joined channel:', channelName);
-          if (isMountedRef.current) { // ✅ only set state if still mounted
-            setStatus('Ready - Waiting for Visitor');
+          if (isMountedRef.current) {
+            setStatus('Ready — Waiting for Visitor');
             setIsJoined(true);
           }
         },
         onUserJoined: (_connection, uid) => {
-          console.log('[CallScreen] 👤 Visitor joined uid:', uid);
           if (isMountedRef.current) {
             setStatus('Visitor Connected!');
             setRemoteUid(uid);
           }
         },
-        onUserOffline: (_connection, uid) => {
-          console.log('[CallScreen] 👤 Visitor left uid:', uid);
-          if (isMountedRef.current) {
-            setStatus('Visitor Disconnected');
-            setRemoteUid(0);
-          }
-        },
-        onLeaveChannel: () => {
-          console.log('[CallScreen] 📤 onLeaveChannel fired');
-        },
-        onError: (err) => {
-          console.log('[CallScreen] ❌ Agora error:', err);
-        },
+        onUserOffline: () => terminateSession('visitor-left'),
+        onError: (err) => console.log('[CallScreen] Agora error:', err),
       });
 
-      await join();
-    } catch (e) {
-      console.log('[CallScreen] ❌ Setup Error:', e);
-    }
-  };
-
-  const join = async () => {
-    console.log('[CallScreen] 📞 Joining channel:', channelName);
-    try {
-      agoraEngineRef.current?.setChannelProfile(
-        ChannelProfileType.ChannelProfileCommunication,
-      );
-      agoraEngineRef.current?.joinChannel('', channelName, 0, {
+      engine.setChannelProfile(ChannelProfileType.ChannelProfileCommunication);
+      engine.joinChannel('', channelName, 0, {
         clientRoleType: ClientRoleType.ClientRoleBroadcaster,
       });
-      console.log('[CallScreen] 📞 joinChannel() called');
+
     } catch (e) {
-      console.log('[CallScreen] ❌ Join Error:', e);
+      console.log('[CallScreen] Setup Error:', e);
     }
   };
 
   const terminateSession = async (caller = 'unknown') => {
-    console.log(`[CallScreen] 🛑 terminateSession() called by: ${caller}`);
-
-    if (hasTerminated.current) {
-      console.log('[CallScreen] ⚠️ Already terminated, skipping');
-      return;
-    }
-
-    if (!agoraEngineRef.current) {
-      console.log('[CallScreen] ⚠️ No engine found, nothing to terminate');
-      hasTerminated.current = true;
-      return;
-    }
-
+    if (hasTerminated.current) return;
     hasTerminated.current = true;
 
-    try {
-      console.log('[CallScreen] 📤 Calling leaveChannel()...');
-      agoraEngineRef.current.leaveChannel();
-
-      // Wait for leaveChannel to complete before release
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      console.log('[CallScreen] 💥 Calling release()...');
-      agoraEngineRef.current.release();
-      agoraEngineRef.current = null;
-      console.log('[CallScreen] ✅ Engine destroyed, ref = null');
-    } catch (e) {
-      console.log('[CallScreen] ❌ Terminate Error:', e);
-      agoraEngineRef.current = null;
+    if (agoraEngineRef.current) {
+      try {
+        agoraEngineRef.current.stopPreview();
+        agoraEngineRef.current.leaveChannel();
+        await new Promise(r => setTimeout(r, 100));
+        agoraEngineRef.current.release();
+        agoraEngineRef.current = null;
+      } catch (e) {
+        console.log('[CallScreen] Terminate Error:', e);
+      }
     }
 
-    // ✅ Only update state if component is still mounted
     if (isMountedRef.current) {
       setIsJoined(false);
       setRemoteUid(0);
+      navigation.navigate('Home');
     }
-
-    console.log('[CallScreen] ✅ terminateSession() complete');
-  };
-
-  const leave = async () => {
-    console.log('[CallScreen] 🔴 Leave button pressed');
-    await terminateSession('leave-button');
-    console.log('[CallScreen] 🏠 Navigating to Home...');
-    navigation.navigate('Home');
   };
 
   return (
     <View style={styles.container}>
-      {/* 1. Full Screen: Remote Visitor Video */}
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+
+      {/* 1. Main View (Visitor) */}
       <View style={styles.remoteView}>
         {remoteUid !== 0 ? (
-          <RtcSurfaceView
-            canvas={{ uid: remoteUid }}
-            style={styles.videoFill}
-          />
+          <RtcSurfaceView canvas={{ uid: remoteUid }} style={styles.videoFill} />
         ) : (
           <View style={styles.waitingBox}>
-            <Ionicons name="person-outline" size={100} color="#666" />
+            <View style={styles.waitingIconRing}>
+              <Ionicons name="person" size={60} color="#007AFF" />
+            </View>
             <Text style={styles.waitingText}>{status}</Text>
-            <Text style={styles.channelText}>Channel: {channelName}</Text>
           </View>
         )}
       </View>
 
-      {/* 2. Floating Window: Your Local Video */}
+      {/* 2. Floating View (Local - and privacy reminder) */}
       <View style={styles.localView}>
-        {isJoined ? (
-          <RtcSurfaceView
-            canvas={{ uid: 0 }}
-            style={styles.videoFill}
-          />
-        ) : null}
+        <View style={styles.privacyOverlay}>
+          <Ionicons name="eye-off" size={24} color="#FFF" />
+          <Text style={styles.privacyText}>Hidden</Text>
+        </View>
       </View>
 
-      {/* 3. Bottom Controls */}
+      {/* 3. Top Info Overlay */}
+      <View style={styles.topBar}>
+        <Text style={styles.channelLabel}>HOUSE {userDetails?.houseNo || '32'}</Text>
+        <Text style={styles.timerText}>{formatTime(callDuration)}</Text>
+      </View>
+
+      {/* 4. Controls */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.endCallBtn} onPress={leave}>
-          <Ionicons name="call" size={32} color="white" />
+        <TouchableOpacity
+          style={[styles.controlBtn, isMuted && styles.mutedBtn]}
+          onPress={() => {
+            setIsMuted(!isMuted);
+            agoraEngineRef.current?.muteLocalAudioStream(!isMuted);
+          }}
+        >
+          <Ionicons name={isMuted ? 'mic-off' : 'mic'} size={24} color="white" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.endCallBtn} onPress={() => terminateSession('button')}>
+          <Ionicons name="call" size={32} color="white" style={{ transform: [{ rotate: '135deg' }] }} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.controlBtn} onPress={() => agoraEngineRef.current?.switchCamera()}>
+          <Ionicons name="camera-reverse" size={24} color="white" />
         </TouchableOpacity>
       </View>
     </View>
@@ -214,34 +195,16 @@ const styles = StyleSheet.create({
   remoteView: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   videoFill: { width: '100%', height: '100%' },
   waitingBox: { alignItems: 'center' },
-  waitingText: { color: 'white', fontSize: 18, marginTop: 20 },
-  channelText: { color: '#666', fontSize: 12, marginTop: 5 },
-  localView: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    width: 110,
-    height: 160,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
-    alignItems: 'center',
-  },
-  endCallBtn: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FF3B30',
-    justifyContent: 'center',
-    alignItems: 'center',
-    transform: [{ rotate: '135deg' }],
-    elevation: 5,
-  },
+  waitingIconRing: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  waitingText: { color: 'white', fontSize: 18, fontWeight: '600' },
+  localView: { position: 'absolute', top: 60, right: 20, width: 100, height: 140, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 2, borderColor: '#333' },
+  privacyOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
+  privacyText: { color: 'white', fontSize: 10, marginTop: 5 },
+  topBar: { position: 'absolute', top: 20, width: '100%', alignItems: 'center' },
+  channelLabel: { color: '#666', letterSpacing: 2, fontSize: 12 },
+  timerText: { color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 5 },
+  bottomBar: { position: 'absolute', bottom: 50, flexDirection: 'row', width: '100%', justifyContent: 'space-evenly', alignItems: 'center' },
+  controlBtn: { width: 55, height: 55, borderRadius: 28, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' },
+  mutedBtn: { backgroundColor: '#FF3B30' },
+  endCallBtn: { width: 75, height: 75, borderRadius: 38, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', elevation: 10 },
 });

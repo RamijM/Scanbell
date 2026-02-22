@@ -1,5 +1,5 @@
 {
-  "name": "DoorVi",
+  "name": "doorvi",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -8,7 +8,9 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "log": "npx react-native log-android"
+    "log": "npx react-native log-android",
+    "serve-visitor": "npx serve visitor",
+    "dev": "concurrently --handle-input \"npm start\" \"npm run serve-visitor\" \"ngrok http 3000\" --names \"METRO,BRIDGE,NGROK\" --prefix-colors \"cyan,magenta,green\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -16,6 +18,9 @@
     "@react-navigation/native": "^7.1.28",
     "@react-navigation/native-stack": "^7.12.0",
     "@supabase/supabase-js": "^2.95.3",
+    "agora-rtm-sdk": "^1.5.1",
+    "base-64": "^1.0.0",
+    "fast-text-encoding": "^1.0.6",
     "react": "19.2.3",
     "react-native": "0.84.0",
     "react-native-agora": "^4.5.3",
@@ -44,6 +49,7 @@
     "@types/jest": "^29.5.13",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
+    "concurrently": "^9.2.1",
     "eslint": "^8.19.0",
     "jest": "^29.6.3",
     "prettier": "2.8.8",
