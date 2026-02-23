@@ -12,11 +12,12 @@ import {
 } from 'react-native-agora';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import LinearGradient from 'react-native-linear-gradient';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function CallScreen({ navigation }) {
-  const { userDetails } = useContext(AppContext);
+  const { userDetails, endCallSignal, sendQuickReply } = useContext(AppContext);
   const agoraEngineRef = useRef(null);
   const hasTerminated = useRef(false);
   const isMountedRef = useRef(true);
@@ -24,12 +25,13 @@ export default function CallScreen({ navigation }) {
 
   const [isJoined, setIsJoined] = useState(false);
   const [remoteUid, setRemoteUid] = useState(0);
-  const [status, setStatus] = useState('Setting up camera...');
+  const [status, setStatus] = useState('Initializing...');
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
 
   const appId = '469ff9909237486f8e9bf8526e09899c';
-  const channelName = `house_${userDetails?.houseNo || '32'}_channel`;
+  const houseNo = userDetails?.houseNo || '32';
+  const channelName = `house_${houseNo}_channel`;
 
   // ── Call Timer ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -50,13 +52,11 @@ export default function CallScreen({ navigation }) {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    console.log('[CallScreen] ✅ Mounted (Safe Version)');
     isMountedRef.current = true;
     hasTerminated.current = false;
     setupVideoSDKEngine();
 
     return () => {
-      console.log('[CallScreen] 🔴 Unmounting');
       isMountedRef.current = false;
       terminateSession('unmount');
     };
@@ -80,20 +80,19 @@ export default function CallScreen({ navigation }) {
       engine.enableVideo();
       engine.enableAudio();
 
-      // LOCK PRIVACY: Admin can see visitor, but visitor sees black
+      // LOCK PRIVACY: Admin sees visitor, but visitor sees black/blurred
       engine.muteLocalVideoStream(true);
-      console.log('[CallScreen] 🔒 Privacy Mode Active');
 
       engine.registerEventHandler({
         onJoinChannelSuccess: () => {
           if (isMountedRef.current) {
-            setStatus('Ready — Waiting for Visitor');
+            setStatus('Ringing...');
             setIsJoined(true);
           }
         },
         onUserJoined: (_connection, uid) => {
           if (isMountedRef.current) {
-            setStatus('Visitor Connected!');
+            setStatus('Live');
             setRemoteUid(uid);
           }
         },
@@ -114,6 +113,11 @@ export default function CallScreen({ navigation }) {
   const terminateSession = async (caller = 'unknown') => {
     if (hasTerminated.current) return;
     hasTerminated.current = true;
+
+    // Send signal to visitor if we are the one ending the call
+    if (caller !== 'visitor-left') {
+      endCallSignal();
+    }
 
     if (agoraEngineRef.current) {
       try {
@@ -136,75 +140,138 @@ export default function CallScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       {/* 1. Main View (Visitor) */}
       <View style={styles.remoteView}>
         {remoteUid !== 0 ? (
           <RtcSurfaceView canvas={{ uid: remoteUid }} style={styles.videoFill} />
         ) : (
-          <View style={styles.waitingBox}>
-            <View style={styles.waitingIconRing}>
-              <Ionicons name="person" size={60} color="#007AFF" />
+          <LinearGradient colors={['#1C1C1E', '#000000']} style={styles.waitingContainer}>
+            <View style={styles.pulseRingOuter}>
+              <View style={[styles.pulseRingInner, { backgroundColor: 'rgba(0,122,255,0.1)' }]}>
+                <MaterialCommunityIcons name="account-search" size={60} color="#007AFF" />
+              </View>
             </View>
             <Text style={styles.waitingText}>{status}</Text>
-          </View>
+            <Text style={styles.waitingSub}>Connecting you to the visitor...</Text>
+          </LinearGradient>
         )}
       </View>
 
-      {/* 2. Floating View (Local - and privacy reminder) */}
-      <View style={styles.localView}>
-        <View style={styles.privacyOverlay}>
-          <Ionicons name="eye-off" size={24} color="#FFF" />
-          <Text style={styles.privacyText}>Hidden</Text>
-        </View>
-      </View>
-
-      {/* 3. Top Info Overlay */}
+      {/* 2. Top Bar Information */}
       <View style={styles.topBar}>
-        <Text style={styles.channelLabel}>HOUSE {userDetails?.houseNo || '32'}</Text>
-        <Text style={styles.timerText}>{formatTime(callDuration)}</Text>
+        <LinearGradient
+          colors={['rgba(0,0,0,0.6)', 'transparent']}
+          style={styles.topGradient}
+        >
+          <View style={styles.topContent}>
+            <View style={styles.userInfo}>
+              <View style={styles.userAvatar}>
+                <Ionicons name="person" size={20} color="white" />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.userName}>Visitor at Door</Text>
+                <Text style={styles.houseLabel}>House {houseNo}</Text>
+              </View>
+            </View>
+            <View style={styles.durationBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.timerText}>{formatTime(callDuration)}</Text>
+            </View>
+          </View>
+        </LinearGradient>
       </View>
 
-      {/* 4. Controls */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.controlBtn, isMuted && styles.mutedBtn]}
-          onPress={() => {
-            setIsMuted(!isMuted);
-            agoraEngineRef.current?.muteLocalAudioStream(!isMuted);
-          }}
+      {/* 3. Floating View (Privacy Mode) */}
+      <View style={styles.localView}>
+        <LinearGradient colors={['#323232', '#121212']} style={styles.privacyBox}>
+          <MaterialCommunityIcons name="eye-off" size={28} color="rgba(255,255,255,0.4)" />
+          <Text style={styles.privacyLabel}>Hidden</Text>
+        </LinearGradient>
+      </View>
+
+      {/* 4. Quick Replies (Floating Chips) */}
+      <View style={styles.liveQuickReplies}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+          <TouchableOpacity style={styles.replyChip} onPress={() => sendQuickReply("Wait 1 min!")}>
+            <Text style={styles.replyChipText}>⏳ Wait 1 Min</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.replyChip} onPress={() => sendQuickReply("I am coming!")}>
+            <Text style={styles.replyChipText}>🏃 Coming!</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.replyChip} onPress={() => sendQuickReply("Leave it there.")}>
+            <Text style={styles.replyChipText}>📦 Leave there</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.replyChip} onPress={() => sendQuickReply("Who is this?")}>
+            <Text style={styles.replyChipText}>❓ Who is it?</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* 4. Controls Dock */}
+      <View style={styles.controlsDock}>
+        <LinearGradient
+          colors={['rgba(28,28,30,0.85)', 'rgba(28,28,30,0.95)']}
+          style={styles.dockGradient}
         >
-          <Ionicons name={isMuted ? 'mic-off' : 'mic'} size={24} color="white" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.controlBtn, isMuted && styles.mutedBtn]}
+            onPress={() => {
+              setIsMuted(!isMuted);
+              agoraEngineRef.current?.muteLocalAudioStream(!isMuted);
+            }}
+          >
+            <Ionicons name={isMuted ? 'mic-off' : 'mic'} size={26} color="white" />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.endCallBtn} onPress={() => terminateSession('button')}>
-          <Ionicons name="call" size={32} color="white" style={{ transform: [{ rotate: '135deg' }] }} />
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.endCallBtn} onPress={() => terminateSession('button')}>
+            <MaterialCommunityIcons name="phone-hangup" size={32} color="white" />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.controlBtn} onPress={() => agoraEngineRef.current?.switchCamera()}>
-          <Ionicons name="camera-reverse" size={24} color="white" />
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.controlBtn} onPress={() => agoraEngineRef.current?.switchCamera()}>
+            <Ionicons name="camera-reverse" size={26} color="white" />
+          </TouchableOpacity>
+        </LinearGradient>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  remoteView: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#000' },
+  remoteView: { flex: 1 },
   videoFill: { width: '100%', height: '100%' },
-  waitingBox: { alignItems: 'center' },
-  waitingIconRing: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  waitingText: { color: 'white', fontSize: 18, fontWeight: '600' },
-  localView: { position: 'absolute', top: 60, right: 20, width: 100, height: 140, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 2, borderColor: '#333' },
-  privacyOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
-  privacyText: { color: 'white', fontSize: 10, marginTop: 5 },
-  topBar: { position: 'absolute', top: 20, width: '100%', alignItems: 'center' },
-  channelLabel: { color: '#666', letterSpacing: 2, fontSize: 12 },
-  timerText: { color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 5 },
-  bottomBar: { position: 'absolute', bottom: 50, flexDirection: 'row', width: '100%', justifyContent: 'space-evenly', alignItems: 'center' },
-  controlBtn: { width: 55, height: 55, borderRadius: 28, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' },
+
+  waitingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  pulseRingOuter: { width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(0,122,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  pulseRingInner: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center' },
+  waitingText: { color: 'white', fontSize: 24, fontWeight: '800', marginTop: 30 },
+  waitingSub: { color: '#8E8E93', fontSize: 16, marginTop: 10, fontWeight: '500' },
+
+  topBar: { position: 'absolute', top: 0, width: '100%', zIndex: 10 },
+  topGradient: { paddingTop: 60, paddingBottom: 40, paddingHorizontal: 25 },
+  topContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  userInfo: { flexDirection: 'row', alignItems: 'center' },
+  userAvatar: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  userName: { color: 'white', fontSize: 18, fontWeight: '800' },
+  houseLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  durationBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30', marginRight: 8 },
+  timerText: { color: 'white', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+
+  localView: { position: 'absolute', top: 120, right: 20, width: 100, height: 150, borderRadius: 25, overflow: 'hidden', zIndex: 5, elevation: 10 },
+  privacyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  privacyLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '700', marginTop: 10, textTransform: 'uppercase' },
+
+  controlsDock: { position: 'absolute', bottom: 40, width: width * 0.85, alignSelf: 'center', borderRadius: 35, overflow: 'hidden', elevation: 20 },
+  dockGradient: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 10 },
+  controlBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
   mutedBtn: { backgroundColor: '#FF3B30' },
-  endCallBtn: { width: 75, height: 75, borderRadius: 38, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', elevation: 10 },
+  endCallBtn: { width: 75, height: 75, borderRadius: 37.5, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center' },
+
+  liveQuickReplies: { position: 'absolute', bottom: 140, width: '100%', paddingLeft: 20 },
+  chipScroll: { paddingRight: 40 },
+  replyChip: { backgroundColor: 'rgba(0,122,255,0.9)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
+  replyChipText: { color: 'white', fontWeight: '800', fontSize: 13 },
 });

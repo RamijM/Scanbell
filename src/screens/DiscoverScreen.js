@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,349 +7,200 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  StatusBar
+  StatusBar,
+  Dimensions,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import LinearGradient from 'react-native-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 export default function DiscoverScreen({ navigation }) {
 
-  const ArticleCard = ({ image, readTime, title, views }) => (
-    <TouchableOpacity style={styles.cardOuter}>
-      <View style={styles.cardInner}>
-        <View style={styles.imageContainer}>
-          <Image source={image} style={styles.thumbnail} />
+  const ArticleCard = ({ image, readTime, title, views, category = "Community" }) => (
+    <TouchableOpacity style={styles.card} activeOpacity={0.9}>
+      <View style={styles.imageBox}>
+        <Image source={image} style={styles.thumbnail} />
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryText}>{category}</Text>
         </View>
-        <View style={styles.cardContent}>
-          <Text style={styles.readTime}>{readTime}</Text>
-          <Text style={styles.title}>{title}</Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.views}>{views}</Text>
-            <Ionicons name="eye-outline" size={14} color="#666" style={{ marginLeft: 4 }} />
+      </View>
+      <View style={styles.contentBox}>
+        <Text style={styles.readTimeText}>{readTime}</Text>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <View style={styles.metaRow}>
+          <View style={styles.statItem}>
+            <Ionicons name="eye-outline" size={16} color="#8E8E93" />
+            <Text style={styles.statText}>{views}</Text>
           </View>
+          <TouchableOpacity style={styles.readBtn}>
+            <Text style={styles.readBtnText}>Read Now</Text>
+            <Ionicons name="chevron-forward" size={14} color="#007AFF" />
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.backgroundContainer}>
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#E0E5EC" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-        {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButtonOuter} onPress={() => navigation.goBack()}>
-            <View style={styles.backButtonInner}>
-              <Ionicons name="arrow-back" size={20} color="#4A4A4A" />
+      {/* HEADER SECTION */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Discover</Text>
+        <TouchableOpacity style={styles.searchBtn}>
+          <Ionicons name="search-outline" size={24} color="#1C1C1E" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+        {/* HERO FEATURED CARD */}
+        <TouchableOpacity style={styles.heroCard} activeOpacity={0.9}>
+          <LinearGradient
+            colors={['rgba(0,122,255,0.8)', 'rgba(0,85,187,0.95)']}
+            style={styles.heroGradient}
+          >
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>Featured</Text>
             </View>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>DoorVi</Text>
-          <View style={styles.headerRight} />
-        </View>
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-          <ArticleCard
-            image={require("../../assets/sunflower.png")}
-            readTime="6 Mins Read"
-            title="QR Code Access for Multi-Family Communities"
-            views="23k"
-          />
-
-          <ArticleCard
-            image={require("../../assets/sunflower.png")}
-            readTime="5 Mins Read"
-            title="Share Your Feedback & Help Improve DoorVi."
-            views="23k"
-          />
-
-          <ArticleCard
-            image={require("../../assets/sunflower.png")}
-            readTime="5 Mins Read"
-            title="Seamless Lock Integration with DoorVi"
-            views="11k"
-          />
-
-          <ArticleCard
-            image={require("../../assets/sunflower.png")}
-            readTime="3 Mins Read"
-            title="Partner with Us"
-            views="27k"
-          />
-
-          <View style={{ height: 100 }} />
-        </ScrollView>
-
-        {/* BOTTOM NAVIGATION */}
-        <View style={styles.bottomNavOuter}>
-          <View style={styles.bottomNavInner}>
-            <TouchableOpacity
-              style={styles.navItem}
-              onPress={() => navigation.navigate("Home")}
-            >
-              <View style={styles.navIconContainer}>
-                <Ionicons name="home-outline" size={22} color="#666" />
+            <Text style={styles.heroTitle}>The Future of Smart Access Control</Text>
+            <Text style={styles.heroSub}>Explore how Scanbell is changing the way we interact with visitors.</Text>
+            <View style={styles.heroFooter}>
+              <Text style={styles.heroTime}>10 Mins Read</Text>
+              <View style={styles.heroArrow}>
+                <Ionicons name="arrow-forward" size={20} color="#007AFF" />
               </View>
-              <Text style={styles.navInactive}>Home</Text>
-            </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
 
-            <TouchableOpacity style={styles.navItem}>
-              <View style={[styles.navIconContainer, styles.activeNavIcon]}>
-                <Ionicons name="cube" size={22} color="#007AFF" />
-              </View>
-              <Text style={styles.navActive}>Discover</Text>
-            </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Latest Updates</Text>
 
-            <TouchableOpacity
-              style={styles.navItem}
-              onPress={() => navigation.navigate("Settings")}
-            >
-              <View style={styles.navIconContainer}>
-                <Ionicons name="settings-outline" size={22} color="#666" />
-              </View>
-              <Text style={styles.navInactive}>Settings</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ArticleCard
+          image={require("../../assets/sunflower.png")}
+          readTime="6 Mins Read"
+          title="QR Code Access for Multi-Family Communities"
+          views="23k"
+          category="Technology"
+        />
 
-      </SafeAreaView>
+        <ArticleCard
+          image={require("../../assets/sunflower.png")}
+          readTime="5 Mins Read"
+          title="Share Your Feedback & Help Improve Scanbell Project"
+          views="18k"
+          category="Feedback"
+        />
+
+        <ArticleCard
+          image={require("../../assets/sunflower.png")}
+          readTime="5 Mins Read"
+          title="Seamless Smart Lock Integration with Scanbell"
+          views="11k"
+          category="Integration"
+        />
+
+        <ArticleCard
+          image={require("../../assets/sunflower.png")}
+          readTime="3 Mins Read"
+          title="Partner with Scanbell: Future of Access"
+          views="27k"
+          category="Business"
+        />
+
+        <View style={{ height: 120 }} />
+      </ScrollView>
+
+      {/* FLOATING GLASS NAVIGATION */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
+          <Ionicons name="home-outline" size={24} color="#8E8E93" />
+          <Text style={styles.navText}>Home</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem}>
+          <View style={styles.activeIndicator} />
+          <Ionicons name="compass" size={26} color="#007AFF" />
+          <Text style={[styles.navText, styles.activeNavText]}>Discover</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Settings")}>
+          <Ionicons name="settings-outline" size={24} color="#8E8E93" />
+          <Text style={styles.navText}>Settings</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-
-  backgroundContainer: {
-    flex: 1,
-    backgroundColor: "#ffffff", // Neumorphism base background
-  },
-
-  container: {
-    flex: 1,
-    backgroundColor: "transparent",
-    paddingHorizontal: 20
-  },
-
+  container: { flex: 1, backgroundColor: "#F8F9FB" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 15,
-    marginBottom: 5,
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    backgroundColor: '#F8F9FB'
   },
+  backBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', elevation: 2 },
+  headerTitle: { fontSize: 24, fontWeight: "900", color: "#1C1C1E" },
+  searchBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', elevation: 2 },
 
-  backButtonOuter: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#E0E5EC",
-    justifyContent: "center",
-    alignItems: "center",
-    // Neumorphism outer shadow
-    shadowColor: "#A3B1C6",
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
+  scrollContent: { paddingHorizontal: 20 },
 
-  backButtonInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#E0E5EC",
-    justifyContent: "center",
-    alignItems: "center",
-    // Neumorphism inner shadow
-    shadowColor: "#FFFFFF",
-    shadowOffset: { width: -3, height: -3 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 6,
-  },
+  heroCard: { width: '100%', height: 200, borderRadius: 30, overflow: 'hidden', marginBottom: 25, elevation: 8 },
+  heroGradient: { flex: 1, padding: 25, justifyContent: 'space-between' },
+  heroBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
+  heroBadgeText: { color: 'white', fontWeight: '800', fontSize: 10, textTransform: 'uppercase' },
+  heroTitle: { fontSize: 22, fontWeight: '900', color: 'white' },
+  heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
+  heroFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroTime: { color: 'white', fontSize: 12, fontWeight: '700' },
+  heroArrow: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center' },
 
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#4A4A4A",
-    textShadowColor: "rgba(0,0,0,0.1)",
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 3,
-  },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: '#1C1C1E', marginBottom: 20 },
 
-  headerRight: {
-    width: 44,
-  },
+  card: { backgroundColor: 'white', borderRadius: 25, marginBottom: 20, overflow: 'hidden', flexDirection: 'row', padding: 12, elevation: 4 },
+  imageBox: { width: 110, height: 110, borderRadius: 20, overflow: 'hidden' },
+  thumbnail: { width: '100%', height: '100%' },
+  categoryBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(0,122,255,0.8)' },
+  categoryText: { color: 'white', fontSize: 9, fontWeight: '800' },
+  contentBox: { flex: 1, marginLeft: 15, justifyContent: 'space-between', paddingVertical: 5 },
+  readTimeText: { fontSize: 11, fontWeight: '600', color: '#8E8E93' },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E', lineHeight: 22 },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statItem: { flexDirection: 'row', alignItems: 'center' },
+  statText: { marginLeft: 5, fontSize: 12, color: '#8E8E93', fontWeight: '600' },
+  readBtn: { flexDirection: 'row', alignItems: 'center' },
+  readBtnText: { fontSize: 13, fontWeight: '700', color: '#007AFF', marginRight: 4 },
 
-  scrollContent: {
-    paddingBottom: 20,
-  },
-
-  cardOuter: {
-    marginBottom: 20,
-    borderRadius: 25,
-    backgroundColor: "#E0E5EC",
-    // Neumorphism outer shadow
-    shadowColor: "#A3B1C6",
-    shadowOffset: { width: 8, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 12,
-  },
-
-  cardInner: {
-    flexDirection: "row",
-    backgroundColor: "#E0E5EC",
-    borderRadius: 23,
-    padding: 12,
-    // Neumorphism inner shadow
-    shadowColor: "#FFFFFF",
-    shadowOffset: { width: -4, height: -4 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-
-  imageContainer: {
-    width: 95,
-    height: 95,
-    borderRadius: 18,
-    backgroundColor: "#E0E5EC",
-    justifyContent: "center",
-    alignItems: "center",
-    // Neumorphism effect for image container
-    shadowColor: "#A3B1C6",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-
-  thumbnail: {
-    width: 87,
-    height: 87,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.5)",
-  },
-
-  cardContent: {
-    flex: 1,
-    marginLeft: 15,
-    justifyContent: "center"
-  },
-
-  readTime: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 4,
-    fontWeight: "500",
-    textShadowColor: "rgba(255,255,255,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 1,
-  },
-
-  title: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#4A4A4A",
-    marginBottom: 6,
-    lineHeight: 22,
-    textShadowColor: "rgba(255,255,255,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 1,
-  },
-
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center"
-  },
-
-  views: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
-
-  bottomNavOuter: {
-    position: "absolute",
-    bottom: 20,
+  bottomNav: {
+    position: 'absolute',
+    bottom: 30,
     left: 20,
     right: 20,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#E0E5EC",
-    // Neumorphism outer shadow
-    shadowColor: "#A3B1C6",
-    shadowOffset: { width: 10, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 20,
-  },
-
-  bottomNavInner: {
-    flex: 1,
-    borderRadius: 38,
-    backgroundColor: "#E0E5EC",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    // Neumorphism inner shadow
-    shadowColor: "#FFFFFF",
-    shadowOffset: { width: -4, height: -4 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
+    height: 75,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
     elevation: 10,
+    paddingBottom: 5
   },
-
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  navIconContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#E0E5EC",
-    justifyContent: "center",
-    alignItems: "center",
-    // Neumorphism outer shadow
-    shadowColor: "#A3B1C6",
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-
-  activeNavIcon: {
-    // Neumorphism inner shadow for active state
-    shadowColor: "#007AFF",
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 10,
-    backgroundColor: "#E8EDF5",
-  },
-
-  navActive: {
-    fontSize: 12,
-    color: "#007AFF",
-    fontWeight: "600",
-    marginTop: 4,
-    textShadowColor: "rgba(0,122,255,0.3)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
-
-  navInactive: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 4,
-    textShadowColor: "rgba(255,255,255,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 1,
-  }
-
+  navItem: { alignItems: 'center', paddingHorizontal: 15 },
+  navText: { fontSize: 10, fontWeight: '700', color: '#8E8E93', marginTop: 4 },
+  activeNavText: { color: '#007AFF' },
+  activeIndicator: { position: 'absolute', top: -10, width: 25, height: 4, backgroundColor: '#007AFF', borderBottomLeftRadius: 5, borderBottomRightRadius: 5 },
 });

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, FlatList,
-  TouchableOpacity, StatusBar
+  View, Text, StyleSheet, FlatList,
+  TouchableOpacity, StatusBar, Dimensions
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+const { width } = Dimensions.get('window');
+
 export default function NotificationsScreen({ navigation }) {
-  // Mock data - in a real app, this would come from your API
   const [notifications, setNotifications] = useState([
     {
       id: '1',
@@ -20,7 +22,7 @@ export default function NotificationsScreen({ navigation }) {
     {
       id: '2',
       title: 'System Update',
-      message: 'Your DoorVi app has been updated to the latest version.',
+      message: 'Your Scanbell app has been updated to v2.1.0.',
       time: 'Yesterday',
       type: 'system',
       isRead: true,
@@ -36,12 +38,15 @@ export default function NotificationsScreen({ navigation }) {
   ]);
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity style={[styles.notiCard, !item.isRead && styles.unreadCard]}>
-      <View style={[styles.iconContainer, { backgroundColor: item.type === 'missed_call' ? '#FFEBEE' : '#E3F2FD' }]}>
-        <MaterialCommunityIcons 
-          name={item.type === 'missed_call' ? "phone-missed" : "bell-outline"} 
-          size={24} 
-          color={item.type === 'missed_call' ? "#F44336" : "#2196F3"} 
+    <TouchableOpacity
+      style={[styles.notiCard, !item.isRead && styles.unreadCard]}
+      activeOpacity={0.8}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: item.type === 'missed_call' ? '#FFEBEE' : '#E8F2FF' }]}>
+        <MaterialCommunityIcons
+          name={item.type === 'missed_call' ? "phone-missed" : item.type === 'system' ? "cellphone-arrow-down" : "account-plus-outline"}
+          size={24}
+          color={item.type === 'missed_call' ? "#FF3B30" : "#007AFF"}
         />
       </View>
       <View style={styles.textContainer}>
@@ -56,77 +61,93 @@ export default function NotificationsScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
-      
-      {/* Header - Matches your Discover/Settings header style */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={26} color="black" />
-        </TouchableOpacity>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* HEADER SECTION */}
+      <LinearGradient
+        colors={["#007AFF", "#0055BB"]}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerRightBtn}>
+            <Text style={styles.headerRightText}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.headerTitle}>Notifications</Text>
-        <TouchableOpacity>
-          <Text style={styles.markReadText}>Mark all read</Text>
-        </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="bell-off-outline" size={80} color="#EEE" />
-            <Text style={styles.emptyText}>No notifications yet</Text>
+            <View style={styles.emptyIconCircle}>
+              <MaterialCommunityIcons name="bell-off-outline" size={60} color="#8E8E93" />
+            </View>
+            <Text style={styles.emptyTitle}>All caught up!</Text>
+            <Text style={styles.emptySub}>No new notifications at the moment.</Text>
           </View>
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 20, 
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE'
+  headerGradient: {
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 25,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    marginBottom: 10
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  markReadText: { color: '#007AFF', fontSize: 13, fontWeight: '600' },
-  listContent: { padding: 15 },
-  notiCard: { 
-    flexDirection: 'row', 
-    backgroundColor: '#FFF', 
-    padding: 15, 
-    borderRadius: 18, 
-    marginBottom: 10,
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  backBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  headerRightBtn: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.1)' },
+  headerRightText: { color: 'white', fontSize: 13, fontWeight: '700' },
+  headerTitle: { fontSize: 32, fontWeight: '900', color: 'white' },
+
+  listContent: { padding: 20, paddingBottom: 100 },
+  notiCard: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    padding: 18,
+    borderRadius: 25,
+    marginBottom: 15,
     alignItems: 'center',
-    elevation: 1,
+    elevation: 3,
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowRadius: 10,
   },
-  unreadCard: { backgroundColor: '#F0F7FF' },
-  iconContainer: { 
-    width: 50, 
-    height: 50, 
-    borderRadius: 25, 
-    justifyContent: 'center', 
+  unreadCard: { borderWidth: 1, borderColor: 'rgba(0,122,255,0.1)', backgroundColor: '#F0F7FF' },
+  iconContainer: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15 
+    marginRight: 15
   },
   textContainer: { flex: 1 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  notiTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  notiTime: { fontSize: 11, color: '#AAA' },
-  notiMessage: { fontSize: 13, color: '#666', lineHeight: 18 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#007AFF', marginLeft: 10 },
-  emptyContainer: { alignItems: 'center', marginTop: 150 },
-  emptyText: { color: '#AAA', marginTop: 10, fontSize: 16 }
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  notiTitle: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
+  notiTime: { fontSize: 11, color: '#8E8E93', fontWeight: '600' },
+  notiMessage: { fontSize: 13, color: '#3A3A3C', lineHeight: 18, fontWeight: '500' },
+  unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF', marginLeft: 10 },
+
+  emptyContainer: { alignItems: 'center', marginTop: 100, paddingHorizontal: 40 },
+  emptyIconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#E5E5EA', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: '#1C1C1E' },
+  emptySub: { fontSize: 16, color: '#8E8E93', textAlign: 'center', marginTop: 10, lineHeight: 24 }
 });

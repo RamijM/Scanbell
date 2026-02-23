@@ -3,181 +3,750 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanbell | Visitor Call</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanbell · Luminous Visitor Portal</title>
+
+    <!-- Agora SDKs -->
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.19.0.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@1.5.1/index.js"></script>
+
+    <!-- Modern Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,600;14..32,700;14..32,800&display=swap"
+        rel="stylesheet">
+
     <style>
-        :root {
-            --primary: #007AFF;
-            --bg: #0f172a;
-            --text: #f8fafc;
+        /* ----- Design System: Glass + Neumorphism Fusion ----- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: radial-gradient(circle at 10% 20%, #1a1f3c, #0c0f20 80%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: rgba(255, 255, 255, 0.95);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Floating Orbs for Futuristic Vibe */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: #007AFF;
+            top: -100px;
+            right: -100px;
+            animation: float 10s infinite;
+        }
+
+        .orb-2 {
+            width: 300px;
+            height: 300px;
+            background: #5856D6;
+            bottom: -50px;
+            left: -50px;
+            animation: float 12s infinite reverse;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(20px, 40px);
+            }
+
+            100% {
+                transform: translate(0, 0);
+            }
+        }
+
+        /* Header */
+        .header {
+            padding: 1.2rem 2rem;
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            background: rgba(8, 12, 25, 0.6);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 10;
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .logo-icon {
+            font-size: 1.8rem;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff, #bbe1fa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .house-badge {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1.2rem;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #007AFF;
+        }
+
+        /* Container */
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            margin: 0;
+            padding: 1rem;
+            z-index: 5;
+            width: 100%;
+        }
+
+        /* Glass Panel */
+        .glass-panel {
+            background: rgba(25, 30, 50, 0.4);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 480px;
+            width: 100%;
+            padding: 2.5rem 1.5rem;
             text-align: center;
         }
 
-        .card {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 40px;
-            border-radius: 32px;
-            width: 90%;
-            max-width: 400px;
+        @media (max-width: 400px) {
+            .glass-panel {
+                padding: 1.5rem 1rem;
+                border-radius: 1.5rem;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .ring-btn {
+                padding: 1rem 1.5rem;
+                font-size: 1rem;
+            }
+        }
+
+        .camera-preview-container {
+            width: 140px;
+            height: 140px;
+            border-radius: 70px;
+            margin: 0 auto 1.5rem;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            border: 3px solid #007AFF;
+            box-shadow: 0 0 20px rgba(0, 122, 255, 0.3);
+        }
+
+        #preview-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .sub-message {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        /* Hybrid Button */
+        .ring-btn {
+            background: linear-gradient(135deg, #007AFF, #0055BB);
+            color: white;
+            border: none;
+            padding: 1.2rem 2.5rem;
+            border-radius: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 800;
+            width: 100%;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 10px 20px rgba(0, 122, 255, 0.3), inset 0 2px 10px rgba(255, 255, 255, 0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .ring-btn:disabled {
+            background: #334155;
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .ring-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* Video Layout */
+        .video-container {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: #000;
+            z-index: 20;
+        }
+
+        #remote-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #local-video-small {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 110px;
+            aspect-ratio: 9/16;
+            border-radius: 1.2rem;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            background: #1a1f30;
+        }
+
+        .call-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(15px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 25;
+            color: white;
+        }
+
+        .status-pill {
+            background: rgba(0, 122, 255, 0.2);
+            padding: 0.8rem 1.8rem;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border: 1px solid #007AFF;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(0, 122, 255, 0.2);
+            border-top: 4px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            z-index: 30;
+        }
+
+        .icon-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 35px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
+            color: white;
+            font-size: 1.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .btn {
-            background: var(--primary);
+        .btn-end {
+            background: rgba(255, 59, 48, 0.8);
+        }
+
+        .btn-mute.muted {
+            background: #FF3B30;
+        }
+
+        canvas#snapshot-canvas {
+            display: none;
+        }
+
+        .status-footer {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Host Message Popup */
+        #host-msg-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: none;
+            width: 85%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 15px 20px;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .animate-msg {
+            animation: slideDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes slideDown {
+            from {
+                top: -100px;
+                opacity: 0;
+            }
+
+            to {
+                top: 20px;
+                opacity: 1;
+            }
+        }
+
+        .host-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: #007AFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .host-msg-content {
+            flex: 1;
+        }
+
+        .host-msg-label {
+            color: #007AFF;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        #host-msg-text {
             color: white;
-            border: none;
-            padding: 18px 30px;
-            border-radius: 16px;
-            font-size: 18px;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        /* Quick Notes Tray */
+        .notes-tray {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.8rem;
+            width: 100%;
+        }
+
+        .note-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 0.6rem 1rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
-            width: 100%;
-            transition: 0.3s;
-            margin-top: 10px;
+            transition: all 0.2s;
         }
 
-        .btn:disabled {
-            background: #334155;
-            color: #94a3b8;
-            cursor: not-allowed;
+        .note-btn:active {
+            background: #007AFF;
+            color: white;
+            transform: translateY(-2px);
         }
 
-        .status {
-            margin-top: 25px;
-            color: #94a3b8;
-            font-size: 14px;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px;
-            border-radius: 12px;
-        }
-
-        .house-no {
-            color: var(--primary);
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .target-id {
-            font-size: 11px;
-            color: #64748b;
-            font-family: monospace;
-        }
-
-        #video-container {
-            width: 100%;
-            height: 220px;
-            background: #000;
-            border-radius: 20px;
-            margin-top: 20px;
+        .note-sent-feedback {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #34C759;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-weight: 700;
+            z-index: 2000;
             display: none;
-            overflow: hidden;
-            border: 2px solid var(--primary);
+            box-shadow: 0 10px 20px rgba(52, 199, 89, 0.3);
+        }
+
+        /* Custom Message Field */
+        .custom-msg-box {
+            margin-top: 1.5rem;
+            width: 100%;
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .custom-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            padding: 0 0.8rem;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .custom-input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .send-btn {
+            background: #007AFF;
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .send-btn:active {
+            transform: scale(0.9);
         }
     </style>
 </head>
 
 <body>
-    <div class="card">
-        <h1>🔔 Scanbell</h1>
-        <div class="house-no">House <span id="house-display">...</span></div>
-        <div class="target-id">Handshake ID: <span id="id-display">Connecting...</span></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
 
-        <p id="msg" style="margin: 20px 0;">Wait for the green light, then press the button to ring the bell.</p>
+    <header class="header">
+        <div class="logo-group">
+            <span class="logo-icon">🔔</span>
+            <span class="logo-text">SCANBELL</span>
+        </div>
+        <div class="house-badge">House <span id="houseNum">--</span></div>
+    </header>
 
-        <button id="call-btn" class="btn" disabled>Wait for Connection...</button>
+    <main class="container">
+        <!-- Pre-call UI -->
+        <div class="glass-panel" id="preCall">
+            <div class="camera-preview-container">
+                <video id="preview-video" autoplay playsinline muted></video>
+            </div>
+            <h1>Visitor Access</h1>
+            <p class="sub-message">Look at the camera and ring the doorbell.<br>The resident will see you instantly.</p>
 
-        <div id="video-container">
-            <div id="local-video" style="width:100%; height:100%;"></div>
+            <button class="ring-btn" id="ringBtn" disabled>Connecting...</button>
+            <div class="status-footer" id="statusLabel">Initializing RTM...</div>
+
+            <div class="notes-tray">
+                <button class="note-btn" onclick="sendNote('📦 Left Package')">📦 Left Package</button>
+                <button class="note-btn" onclick="sendNote('📝 Left Note')">📝 Left Note</button>
+                <button class="note-btn" onclick="sendNote('🚶 Will Come Back')">🚶 Will Come Back</button>
+            </div>
+
+            <div class="custom-msg-box">
+                <input type="text" id="customMsgInput" class="custom-input" placeholder="Type a custom message...">
+                <button class="send-btn" onclick="sendCustomNote()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
         </div>
 
-        <div class="status" id="status-text">🔄 Initializing RTM...</div>
-    </div>
+        <div id="noteFeedback" class="note-sent-feedback">Message Sent to Resident!</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@1.5.1/index.js"></script>
-    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
+        <!-- In-call UI -->
+        <div class="video-container" id="videoLayout">
+            <div id="host-msg-container">
+                <div class="host-avatar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <div class="host-msg-content">
+                    <div class="host-msg-label">Resident Says</div>
+                    <div id="host-msg-text">Wait a minute, I am coming!</div>
+                </div>
+            </div>
+            <div id="remote-video"></div>
+            <div id="local-video-small"></div>
+
+            <div class="call-overlay" id="statusOverlay">
+                <div class="status-pill" id="callStatusText">Ringing...</div>
+                <div class="loader"></div>
+            </div>
+
+            <div class="controls">
+                <button class="icon-btn btn-mute" id="muteBtn" onclick="toggleMute()">🎤</button>
+                <button class="icon-btn btn-end" onclick="endSession()">📞</button>
+            </div>
+        </div>
+    </main>
+
+    <canvas id="snapshot-canvas" width="128" height="128"></canvas>
 
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const appId = params.get('appid') || '469ff9909237486f8e9bf8526e09899c';
-        const channel = params.get('channelName') || 'house_32_channel';
-        const houseNo = channel.split('_')[1] || '32';
+        const urlParams = new URLSearchParams(window.location.search);
+        const appId = urlParams.get('appid') || '469ff9909237486f8e9bf8526e09899c';
+
+        let houseNo = urlParams.get('houseNo');
+        if (!houseNo) {
+            const channel = urlParams.get('channelName') || 'house_32_channel';
+            houseNo = channel.split('_')[1] || '32';
+        }
+
+        const channelName = `house_${houseNo}_channel`;
         const targetId = `house_${houseNo}`;
-        const myId = `visitor_${Math.floor(Math.random() * 10000)}`;
+        const visitorId = "Visitor_" + Math.floor(Math.random() * 9999);
 
-        document.getElementById('house-display').innerText = houseNo;
-        document.getElementById('id-display').innerText = targetId;
+        document.getElementById('houseNum').innerText = houseNo;
 
-        let rtmClient, isRtmLoggedIn = false;
+        let rtmClient = null;
+        let rtcClient = null;
+        let localTracks = { video: null, audio: null };
+        let signalTimer = null;
+        let isMuted = false;
+        let hasAnswered = false;
 
         async function init() {
             try {
-                rtmClient = AgoraRTM.createInstance(appId);
+                // 1. Camera Preview
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('preview-video').srcObject = stream;
 
-                rtmClient.on('MessageFromPeer', async (message, peerId) => {
-                    console.log('Signal from app:', message.text);
+                // 2. Signaling
+                rtmClient = AgoraRTM.createInstance(appId);
+                await rtmClient.login({ uid: visitorId });
+
+                updateStatus('🟢 System Ready');
+                const ringBtn = document.getElementById('ringBtn');
+                ringBtn.disabled = false;
+                ringBtn.innerText = 'Ring Doorbell';
+
+                rtmClient.on('MessageFromPeer', (message) => {
+                    console.log("[RTM] From Phone:", message.text);
                     if (message.text === 'CALL_ACCEPTED') {
-                        updateStatus('✅ Answered! Connecting Video...');
-                        startVideoCall();
-                    } else if (message.text === 'CALL_REJECTED') {
-                        updateStatus('⛔ Homeowner is busy. Try again later.');
-                        document.getElementById('call-btn').disabled = false;
+                        hasAnswered = true;
+                        clearInterval(signalTimer);
+                        document.getElementById('statusOverlay').classList.add('hidden');
+                    }
+                    if (message.text === 'CALL_REJECTED') {
+                        location.reload();
+                        alert("The resident is currently unavailable.");
+                    }
+                    if (message.text === 'CALL_ENDED') {
+                        console.log("[RTM] Host ended the call");
+                        endSession();
+                    }
+                    if (message.text.startsWith('QUICK_REPLY:')) {
+                        const reply = message.text.replace('QUICK_REPLY:', '');
+                        showHostMessage(reply);
                     }
                 });
-
-                await rtmClient.login({ uid: myId });
-                isRtmLoggedIn = true;
-                updateStatus('🟢 System Online - Ready to Ring');
-                document.getElementById('call-btn').innerText = 'Ring Doorbell';
-                document.getElementById('call-btn').disabled = false;
-                document.getElementById('call-btn').style.background = '#22c55e';
-            } catch (err) {
-                updateStatus('❌ Connection Failed: ' + err.message);
-                console.error(err);
+            } catch (e) {
+                console.error(e);
+                updateStatus('❌ Camera Access Required');
             }
+        }
+
+        function showHostMessage(text) {
+            const container = document.getElementById('host-msg-container');
+            const msgEl = document.getElementById('host-msg-text');
+
+            msgEl.innerText = text;
+            container.style.display = 'flex';
+            container.classList.add('animate-msg');
+
+            // Text to Speech
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.pitch = 1.1;
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+            }
+
+            // Auto hide after 10 seconds
+            setTimeout(() => {
+                container.style.display = 'none';
+                container.classList.remove('animate-msg');
+            }, 10000);
+        }
+
+        function sendNote(msg) {
+            if (!rtmClient) return;
+            const payload = `VISITOR_NOTE:${msg}`;
+            rtmClient.sendMessageToPeer({ text: payload }, targetId)
+                .then(() => {
+                    const fb = document.getElementById('noteFeedback');
+                    fb.style.display = 'block';
+                    setTimeout(() => fb.style.display = 'none', 3000);
+                })
+                .catch(e => console.error(e));
+        }
+
+        function sendCustomNote() {
+            const input = document.getElementById('customMsgInput');
+            const msg = input.value.trim();
+            if (msg) {
+                sendNote(msg);
+                input.value = '';
+            }
+        }
+
+        function takeSnapshot() {
+            const canvas = document.getElementById('snapshot-canvas');
+            const video = document.getElementById('preview-video');
+            const ctx = canvas.getContext('2d');
+            if (video.videoWidth > 0) {
+                ctx.drawImage(video, 0, 0, 128, 128);
+                return canvas.toDataURL('image/jpeg', 0.5);
+            }
+            return null;
         }
 
         async function ringBell() {
-            if (!isRtmLoggedIn) return;
-            document.getElementById('call-btn').disabled = true;
-            updateStatus('🔔 Ringing... Waiting for Homeowner');
+            const snapshot = takeSnapshot();
 
+            // UI Switch
+            document.getElementById('preCall').classList.add('hidden');
+            document.getElementById('videoLayout').style.display = 'block';
+
+            // Start Signaling Loop
+            const payload = JSON.stringify({ event: 'CALL_REQUEST', image: snapshot });
+            const sendSignal = () => {
+                if (hasAnswered) return;
+                rtmClient.sendMessageToPeer({ text: payload }, targetId)
+                    .then(() => console.log("[RTM] Signal Sent"))
+                    .catch(e => console.error(e));
+            };
+
+            sendSignal();
+            signalTimer = setInterval(sendSignal, 4000);
+
+            // Init RTC
             try {
-                console.log('Sending CALL_REQUEST to:', targetId);
-                await rtmClient.sendMessageToPeer({ text: 'CALL_REQUEST' }, targetId);
-                updateStatus('🔔 Signal Sent! Keep this page open.');
-            } catch (err) {
-                updateStatus('❌ Signal Failed. Please Refresh.');
-                document.getElementById('call-btn').disabled = false;
+                rtcClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+                rtcClient.on('user-published', async (user, mediaType) => {
+                    await rtcClient.subscribe(user, mediaType);
+                    if (mediaType === 'video') user.videoTrack.play('remote-video');
+                    if (mediaType === 'audio') user.audioTrack.play();
+                });
+
+                [localTracks.audio, localTracks.video] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                localTracks.video.play('local-video-small');
+
+                await rtcClient.join(appId, channelName, null, null);
+                await rtcClient.publish([localTracks.audio, localTracks.video]);
+            } catch (e) {
+                console.error("RTC Error", e);
             }
         }
 
-        async function startVideoCall() {
-            const rtcClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-            await rtcClient.join(appId, channel, null, 2);
-            const localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
-            document.getElementById('video-container').style.display = 'block';
-            localTracks[1].play("local-video");
-            await rtcClient.publish(localTracks);
-            updateStatus('🎥 Live Call Active');
-            document.getElementById('msg').innerText = "One-way call: Owner can see you. You cannot see them.";
+        function toggleMute() {
+            isMuted = !isMuted;
+            localTracks.audio.setEnabled(!isMuted);
+            const btn = document.getElementById('muteBtn');
+            btn.innerText = isMuted ? '🔇' : '🎤';
+            btn.classList.toggle('muted', isMuted);
         }
 
-        function updateStatus(text) { document.getElementById('status-text').innerText = text; }
-        document.getElementById('call-btn').onclick = ringBell;
+        async function endSession() {
+            clearInterval(signalTimer);
+            if (localTracks.video) localTracks.video.close();
+            if (localTracks.audio) localTracks.audio.close();
+            if (rtcClient) await rtcClient.leave();
+            location.reload();
+        }
+
+        function updateStatus(txt) { document.getElementById('statusLabel').innerText = txt; }
+        document.getElementById('ringBtn').onclick = ringBell;
+
         init();
     </script>
 </body>

@@ -13,6 +13,7 @@
     "dev": "concurrently --handle-input \"npm start\" \"npm run serve-visitor\" \"ngrok http 3000\" --names \"METRO,BRIDGE,NGROK\" --prefix-colors \"cyan,magenta,green\""
   },
   "dependencies": {
+    "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native/new-app-screen": "0.84.0",
     "@react-navigation/native": "^7.1.28",
