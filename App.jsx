@@ -9,7 +9,11 @@ import EmailSignInScreen from './src/screens/EmailSignInScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import CallScreen from './src/screens/CallScreen';
 import VisitorCallScreen from './src/screens/VisitorCallScreen';
-
+import SettingsScreen from './src/screens/SettingsScreen';
+import DiscoverScreen from './src/screens/DiscoverScreen';
+import AddMemberScreen from './src/screens/AddMemberScreen'; // The page I just gave you
+import CallLogsScreen from './src/screens/CallLogsScreen'
+import NotificationsScreen from './src/screens/NotificationsScreen'
 const Stack = createNativeStackNavigator();
 
 const linking = {
@@ -52,6 +56,11 @@ function RootStack() {
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Call" component={CallScreen} />
       <Stack.Screen name="VisitorCall" component={VisitorCallScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Discover" component={DiscoverScreen} />
+      <Stack.Screen name="AddMember" component={AddMemberScreen} />
+      <Stack.Screen name="CallLogs" component={CallLogsScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
   );
 }
