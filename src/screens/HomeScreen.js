@@ -1,451 +1,519 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
-import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, Modal, Dimensions, Pressable, Vibration,
-} from 'react-native';
-import { AppContext } from '../context/AppContext';
-import QRCode from 'react-native-qrcode-svg';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import AgoraRTM from 'agora-rtm-sdk';
+<!DOCTYPE html>
+<html lang="en">
 
-const { width } = Dimensions.get('window');
-const LOGS_STORAGE_KEY = 'doorvi_call_logs';
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanbell · Luminous Visitor Portal</title>
 
-export default function HomeScreen({ navigation }) {
-  const { userDetails, logout, loading } = useContext(AppContext);
+    <!-- Agora SDKs -->
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.19.0.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@1.5.1/index.js"></script>
 
-  const [showQRSticker, setShowQRSticker] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [logs, setLogs] = useState([]);
+    <!-- Modern Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,600;14..32,700;14..32,800&display=swap"
+        rel="stylesheet">
 
-  // RTM Ref for persistent background connection
-  const rtmClientRef = useRef(null);
-  const [incomingCall, setIncomingCall] = useState(null); // stores visitor info
+    <style>
+        /* ----- Design System: Glass + Neumorphism Fusion ----- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
 
-  const appId = '469ff9909237486f8e9bf8526e09899c';
-  const houseNo = userDetails?.houseNo || '32';
-  const channelName = `house_${houseNo}_channel`;
-  const rtmUserId = `house_${houseNo}`;
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: radial-gradient(circle at 10% 20%, #1a1f3c, #0c0f20 80%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: rgba(255, 255, 255, 0.95);
+            overflow: hidden;
+            position: relative;
+        }
 
-  // ── IMPORTANT: POINT QR CODE TO WEB PAGE (No App Needed) ─────────────────
-  const BRIDGE_BASE_URL = 'https://alokmaurya2405-droid.github.io/doorvi-call';
-  const qrPayload = `${BRIDGE_BASE_URL}/doorvi-visitor-call.html?appid=${appId}&channelName=${channelName}`;
+        /* Floating Orbs for Futuristic Vibe */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: 0;
+            opacity: 0.5;
+        }
 
-  // ── Local call log helpers ───────────────────────────────────────────────
-  const logCall = async (status) => {
-    try {
-      const newLog = {
-        id: Date.now().toString(),
-        house_no: houseNo,
-        status,
-        created_at: new Date().toISOString(),
-      };
-      const updatedLogs = [newLog, ...logs].slice(0, 20);
-      setLogs(updatedLogs);
-      await AsyncStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(updatedLogs));
-    } catch (e) {
-      console.log('[HomeScreen] ❌ Log error:', e);
-    }
-  };
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: #007AFF;
+            top: -100px;
+            right: -100px;
+            animation: float 10s infinite;
+        }
 
-  const loadLogs = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(LOGS_STORAGE_KEY);
-      if (stored) setLogs(JSON.parse(stored));
-    } catch (e) {
-      console.log('[HomeScreen] ❌ Load logs error:', e);
-    }
-  };
+        .orb-2 {
+            width: 300px;
+            height: 300px;
+            background: #5856D6;
+            bottom: -50px;
+            left: -50px;
+            animation: float 12s infinite reverse;
+        }
 
-  // ── AGORA RTM SIGNALING (PURE JS - STABLE) ───────────────────────────
-  useEffect(() => {
-    if (loading || rtmClientRef.current) return;
+        @keyframes float {
+            0% {
+                transform: translate(0, 0);
+            }
 
-    const initRTM = async () => {
-      try {
-        console.log(`[RTM] 🛡️ Opening secure connection for House: ${houseNo}...`);
-        const client = AgoraRTM.createInstance(appId);
-        rtmClientRef.current = client;
+            50% {
+                transform: translate(20px, 40px);
+            }
 
-        client.on('MessageFromPeer', (message, peerId) => {
-          console.log('[RTM] 📥 Signal Received:', message.text, 'from:', peerId);
-          if (message.text === 'CALL_REQUEST') {
-            setIncomingCall({ visitorId: peerId });
-            Vibration.vibrate([1000, 1000, 1000, 1000], true);
-          }
-        });
+            100% {
+                transform: translate(0, 0);
+            }
+        }
 
-        await client.login({ uid: rtmUserId });
-        console.log('[RTM] ✅ Connection Stable & Active!');
-      } catch (err) {
-        console.log('[RTM] ❌ Connection failed:', err.message);
-        rtmClientRef.current = null;
-      }
-    };
+        /* Header */
+        .header {
+            padding: 1.2rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(8, 12, 25, 0.6);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 10;
+        }
 
-    initRTM();
-    loadLogs();
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
 
-    return () => {
-      // We only logout when the component actually UNMOUNTS
-      // (Like when logging out to SignIn screen)
-    };
-  }, [loading]);
+        .logo-icon {
+            font-size: 1.8rem;
+        }
 
-  const acceptCall = () => {
-    Vibration.cancel();
-    if (rtmClientRef.current && incomingCall?.visitorId) {
-      rtmClientRef.current.sendMessageToPeer({ text: 'CALL_ACCEPTED' }, incomingCall.visitorId)
-        .catch(e => console.log('[RTM] Signal Error:', e));
-    }
-    logCall('Answered Call');
-    setIncomingCall(null);
-    navigation.navigate('Call');
-  };
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff, #bbe1fa);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
 
-  const declineCall = () => {
-    Vibration.cancel();
-    if (rtmClientRef.current && incomingCall?.visitorId) {
-      rtmClientRef.current.sendMessageToPeer({ text: 'CALL_REJECTED' }, incomingCall.visitorId)
-        .catch(e => console.log('[RTM] Signal Error:', e));
-    }
-    logCall('Missed Call (Declined)');
-    setIncomingCall(null);
-  };
+        .house-badge {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1.2rem;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #007AFF;
+        }
 
-  const enterCallRoom = () => {
-    logCall('Entered Call Room');
-    navigation.navigate('Call'); // Agora ONLY starts when this screen opens
-  };
+        /* Container */
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            z-index: 5;
+        }
 
-  const MenuIcon = ({ icon, label, onPress }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
-      <View style={styles.menuIconContainer}>
-        <MaterialCommunityIcons name={icon} size={28} color="black" />
-      </View>
-      <Text style={styles.menuLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
+        /* Glass Panel */
+        .glass-panel {
+            background: rgba(25, 30, 50, 0.4);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 480px;
+            width: 100%;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
 
-  const FooterAction = ({ icon, label }) => (
-    <TouchableOpacity style={styles.footerActionItem}>
-      <Ionicons name={icon} size={22} color="white" />
-      <Text style={styles.footerActionLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
+        .camera-preview-container {
+            width: 140px;
+            height: 140px;
+            border-radius: 70px;
+            margin: 0 auto 1.5rem;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            border: 3px solid #007AFF;
+            box-shadow: 0 0 20px rgba(0, 122, 255, 0.3);
+        }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* ... UI remains the same ... */}
-      <View style={styles.header}>
-        <View style={styles.crownContainer}>
-          <MaterialCommunityIcons name="crown" size={24} color="#FFD700" />
-        </View>
-        <Text style={styles.logoText}>DoorVi</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconCircle}
-            onPress={async () => {
-              console.log('[RTM] Running Self-Test...');
-              if (rtmClientRef.current) {
-                rtmClientRef.current.sendMessageToPeer({ text: 'CALL_REQUEST' }, rtmUserId)
-                  .then(() => console.log('[RTM] Self-Test message sent!'))
-                  .catch(e => console.log('[RTM] Self-Test failed:', e));
-              } else {
-                console.log('[RTM] Client not ready for test');
-              }
-            }}
-          >
-            <Ionicons name="bug-outline" size={22} color="black" />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconCircle, { marginLeft: 10 }]}>
-            <Ionicons name="notifications-outline" size={22} color="black" />
-            <View style={styles.redDot} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.iconCircle, { marginLeft: 10 }]}
-            onPress={async () => {
-              await logout();
-              navigation.replace('SignIn');
-            }}
-          >
-            <MaterialCommunityIcons name="logout" size={22} color="black" />
-          </TouchableOpacity>
-        </View>
-      </View>
+        #preview-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.mainCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.houseIconBox}>
-              <MaterialCommunityIcons name="home-variant" size={40} color="black" />
-              <View style={styles.onlineStatus} />
-            </View>
-            <View style={styles.houseInfo}>
-              <Text style={styles.houseNumber}>{houseNo}</Text>
-              <TouchableOpacity style={styles.callLogBtn}>
-                <Text style={styles.callLogText}>Call Logs</Text>
-                <View style={styles.blueArrow}>
-                  <Ionicons name="chevron-forward" size={14} color="white" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
 
-          <View style={styles.iconGrid}>
-            <MenuIcon icon="qrcode" label="Download QR Kit" onPress={() => setShowQRSticker(true)} />
-            <MenuIcon icon="account-plus-outline" label="Add Member" />
-            <MenuIcon icon="check-decagram-outline" label="Activate QR Code" onPress={() => setShowWelcome(true)} />
-            <MenuIcon icon="dots-horizontal" label="More" />
-          </View>
+        .sub-message {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
 
-          {/* Enter Call Room Button — Agora only starts when you press this */}
-          <TouchableOpacity style={styles.enterCallBtn} onPress={enterCallRoom}>
-            <Ionicons name="videocam" size={22} color="white" />
-            <Text style={styles.enterCallBtnText}>Enter Call Room</Text>
-          </TouchableOpacity>
+        /* Hybrid Button */
+        .ring-btn {
+            background: linear-gradient(135deg, #007AFF, #0055BB);
+            color: white;
+            border: none;
+            padding: 1.2rem 2.5rem;
+            border-radius: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 800;
+            width: 100%;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 10px 20px rgba(0, 122, 255, 0.3), inset 0 2px 10px rgba(255, 255, 255, 0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
 
-          <TouchableOpacity style={styles.premiumBanner}>
-            <View>
-              <Text style={styles.premiumTitle}>Upgrade to Premium!</Text>
-              <Text style={styles.premiumSub}>Subscribe now for uninterrupted experience</Text>
-            </View>
-            <View style={styles.blackCircleArrow}>
-              <Ionicons name="chevron-forward" size={20} color="white" />
-            </View>
-          </TouchableOpacity>
-        </View>
+        .ring-btn:disabled {
+            background: #334155;
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
 
-        <View style={styles.logsSection}>
-          <Text style={styles.sectionTitle}>Call Logs</Text>
-          <Text style={styles.dateText}>Recent Activity</Text>
-          {logs.length === 0 ? (
-            <View style={styles.logPlaceholder}>
-              <Text style={{ color: '#999' }}>No recent calls</Text>
-            </View>
-          ) : (
-            logs.slice(0, 10).map((item) => (
-              <View key={item.id} style={styles.realLogItem}>
-                <View style={[styles.logIconCircle, {
-                  backgroundColor: item.status === 'Answered' ? '#E8F5E9' : '#FFEBEE'
-                }]}>
-                  <MaterialCommunityIcons
-                    name={item.status === 'Answered' ? 'phone-check' : 'phone-incoming'}
-                    size={20}
-                    color={item.status === 'Answered' ? '#4CAF50' : '#F44336'}
-                  />
-                </View>
-                <View style={styles.logTextContainer}>
-                  <Text style={styles.logStatusText}>{item.status}</Text>
-                  <Text style={styles.logTimeText}>
-                    {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • House {item.house_no}
-                  </Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
+        .ring-btn:active {
+            transform: scale(0.97);
+        }
 
-      {/* MODAL 1: WELCOME */}
-      <Modal transparent visible={showWelcome} animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowWelcome(false)}>
-          <Pressable style={styles.welcomeCard} onPress={e => e.stopPropagation()}>
-            <TouchableOpacity style={styles.welcomeCloseButton} onPress={() => setShowWelcome(false)}>
-              <Ionicons name="close" size={24} color="#FFF" />
-            </TouchableOpacity>
-            <View style={styles.modalLogoRow}>
-              <View style={styles.blueIconCircle}>
-                <MaterialCommunityIcons name="door-open" size={18} color="white" />
-              </View>
-              <Text style={styles.brandText}>DoorVi</Text>
-            </View>
-            <Text style={styles.welcomeTitle}>Welcome, {userDetails?.name || 'Alok Maurya'}</Text>
-            <Text style={styles.instructionText}>
-              Simply print out the QR code,{'\n'}Stick it, and stay connected.
-            </Text>
-            <TouchableOpacity style={styles.outlineBtn} onPress={() => { setShowWelcome(false); setShowQRSticker(true); }}>
-              <Text style={styles.outlineBtnText}>Activate QR Code</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.solidBtn} onPress={() => { setShowWelcome(false); enterCallRoom(); }}>
-              <Text style={styles.solidBtnText}>Enter Call Room</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        /* Video Layout */
+        .video-container {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: #000;
+            z-index: 20;
+        }
 
-      {/* MODAL 2: QR STICKER */}
-      <Modal transparent visible={showQRSticker} animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowQRSticker(false)}>
-          <Pressable style={styles.stickerOuterContainer} onPress={e => e.stopPropagation()}>
-            <View style={styles.stickerHeader}>
-              <Text style={styles.stickerHeaderText}>QR Code Sticker</Text>
-              <TouchableOpacity style={styles.stickerCloseButton} onPress={() => setShowQRSticker(false)}>
-                <Ionicons name="close" size={24} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.stickerBlueFrame}>
-              <View style={styles.stickerWhiteBody}>
-                <Text style={styles.stickerHouseNo}>{houseNo}</Text>
-                <View style={styles.qrContainer}>
-                  <QRCode
-                    value={qrPayload}
-                    size={width * 0.55}
-                    logo={require('../../assets/door.png')}
-                    logoSize={50}
-                    logoBackgroundColor="transparent"
-                  />
-                </View>
-                <Text style={styles.scanCallText}>SCAN QR CODE{'\n'}TO CALL OWNER</Text>
-                <View style={styles.bulletBox}>
-                  <Text style={styles.bulletText}>• Please Do Not Knock or Ring The Bell</Text>
-                  <Text style={styles.bulletText}>• Scan Code Using Camera or QR Scanner App</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.footerActions}>
-              <FooterAction icon="download-outline" label="Download" />
-              <FooterAction icon="print-outline" label="Print" />
-              <FooterAction icon="share-outline" label="Share" />
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        #remote-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
-      {/* MODAL 3: INCOMING CALL (SIGNALING) */}
-      <Modal transparent visible={!!incomingCall} animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.incomingCallCard}>
-            <View style={styles.pulseRing}>
-              <View style={styles.callingIconSmall}>
-                <Ionicons name="notifications" size={32} color="white" />
-              </View>
-            </View>
-            <Text style={styles.incomingTitle}>Visitor at Door!</Text>
-            <Text style={styles.incomingSub}>Someone is requesting a video call for House {houseNo}</Text>
+        #local-video-small {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 110px;
+            aspect-ratio: 9/16;
+            border-radius: 1.2rem;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            background: #1a1f30;
+        }
 
-            <View style={styles.incomingButtonsRow}>
-              <TouchableOpacity style={styles.declineBtn} onPress={declineCall}>
-                <Ionicons name="close" size={28} color="white" />
-                <Text style={styles.declineText}>Decline</Text>
-              </TouchableOpacity>
+        .call-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(15px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 25;
+            color: white;
+        }
 
-              <TouchableOpacity style={styles.acceptBtn} onPress={acceptCall}>
-                <Ionicons name="videocam" size={28} color="white" />
-                <Text style={styles.acceptText}>Accept</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        .status-pill {
+            background: rgba(0, 122, 255, 0.2);
+            padding: 0.8rem 1.8rem;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border: 1px solid #007AFF;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
 
-      <TouchableOpacity style={styles.fab} onPress={enterCallRoom}>
-        <Ionicons name="videocam" size={28} color="white" />
-      </TouchableOpacity>
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(0, 122, 255, 0.2);
+            border-top: 4px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
 
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
 
-    </SafeAreaView>
-  );
-}
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            z-index: 30;
+        }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: 'white' },
-  crownContainer: { backgroundColor: '#FFF9E6', padding: 5, borderRadius: 8 },
-  logoText: { fontSize: 22, fontWeight: 'bold', marginLeft: 10, flex: 1, color: 'black' },
-  headerRight: { flexDirection: 'row' },
-  iconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center' },
-  redDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: 'red' },
-  mainCard: { margin: 16, backgroundColor: 'white', borderRadius: 20, padding: 20, elevation: 3 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center' },
-  houseIconBox: { width: 80, height: 80, backgroundColor: '#F0F0F0', borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
-  onlineStatus: { position: 'absolute', bottom: 5, right: 5, width: 12, height: 12, borderRadius: 6, backgroundColor: '#4CAF50' },
-  houseInfo: { marginLeft: 15, flex: 1 },
-  houseNumber: { fontSize: 24, fontWeight: 'bold', color: 'black' },
-  callLogBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-  callLogText: { color: '#666', marginRight: 5 },
-  blueArrow: { backgroundColor: '#007AFF', borderRadius: 10, padding: 2 },
-  iconGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 25 },
-  menuItem: { alignItems: 'center', width: '22%' },
-  menuIconContainer: { width: 50, height: 50, backgroundColor: '#F8F9FB', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
-  menuLabel: { fontSize: 11, textAlign: 'center', color: '#333' },
-  enterCallBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#4CAF50', borderRadius: 15, padding: 16, marginTop: 20, gap: 10,
-  },
-  enterCallBtnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  premiumBanner: { marginTop: 15, backgroundColor: '#E3F2FD', borderRadius: 15, padding: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  premiumTitle: { fontWeight: 'bold', color: '#0D47A1' },
-  premiumSub: { fontSize: 11, color: '#1976D2' },
-  blackCircleArrow: { backgroundColor: 'black', borderRadius: 15, padding: 5 },
-  logsSection: { paddingHorizontal: 16, paddingBottom: 100 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: 'black' },
-  dateText: { color: '#999', marginVertical: 5 },
-  logPlaceholder: { height: 80, backgroundColor: '#F0F0F0', borderRadius: 15, marginTop: 10, justifyContent: 'center', alignItems: 'center' },
-  realLogItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 12, borderRadius: 15, marginTop: 10, elevation: 1 },
-  logIconCircle: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  logTextContainer: { flex: 1 },
-  logStatusText: { fontWeight: 'bold', color: 'black', fontSize: 14 },
-  logTimeText: { color: '#999', fontSize: 12 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  welcomeCard: { width: '85%', backgroundColor: '#007AFF', borderRadius: 30, padding: 25, alignItems: 'center' },
-  welcomeCloseButton: { position: 'absolute', top: 15, right: 15, padding: 5 },
-  modalLogoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  blueIconCircle: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 10 },
-  brandText: { color: 'white', fontSize: 20, fontWeight: 'bold', marginLeft: 10 },
-  welcomeTitle: { color: 'white', fontSize: 22, fontWeight: 'bold', textAlign: 'center' },
-  instructionText: { color: 'white', textAlign: 'center', marginVertical: 20, lineHeight: 22 },
-  outlineBtn: { borderWidth: 1, borderColor: 'white', borderRadius: 25, paddingVertical: 12, width: '100%', alignItems: 'center', marginBottom: 12 },
-  outlineBtnText: { color: 'white', fontWeight: '600' },
-  solidBtn: { backgroundColor: 'white', borderRadius: 25, paddingVertical: 12, width: '100%', alignItems: 'center' },
-  solidBtnText: { color: '#007AFF', fontWeight: 'bold' },
-  stickerOuterContainer: { width: '90%', alignItems: 'center' },
-  stickerHeader: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  stickerHeaderText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  stickerCloseButton: { padding: 5 },
-  stickerBlueFrame: { width: '100%', backgroundColor: '#007AFF', padding: 15, borderRadius: 20 },
-  stickerWhiteBody: { backgroundColor: 'white', borderRadius: 15, padding: 20, alignItems: 'center' },
-  stickerHouseNo: { fontSize: 32, fontWeight: '900', color: 'black', marginBottom: 15 },
-  qrContainer: { padding: 15, backgroundColor: 'white', elevation: 5, borderRadius: 10, marginBottom: 15 },
-  scanCallText: { textAlign: 'center', fontSize: 18, fontWeight: 'bold', color: 'black', marginBottom: 15 },
-  bulletBox: { width: '100%', borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 15 },
-  bulletText: { fontSize: 12, color: '#666', marginBottom: 5 },
-  footerActions: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 20 },
-  footerActionItem: { alignItems: 'center' },
-  footerActionLabel: { color: 'white', fontSize: 12, marginTop: 5 },
-  fab: { position: 'absolute', bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center', elevation: 5 },
+        .icon-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 35px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-size: 1.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
 
-  // Incoming Call Styles
-  incomingCallCard: {
-    width: '85%', backgroundColor: '#1C1C1E', borderRadius: 32,
-    padding: 30, alignItems: 'center', elevation: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  pulseRing: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(0,122,255,0.1)',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20,
-  },
-  callingIconSmall: {
-    width: 70, height: 70, borderRadius: 35,
-    backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center',
-  },
-  incomingTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
-  incomingSub: { color: '#999', textAlign: 'center', fontSize: 14, marginBottom: 30, lineHeight: 20 },
-  incomingButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  declineBtn: {
-    flex: 1, backgroundColor: '#FF3B30', height: 60, borderRadius: 20,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    marginRight: 10, gap: 8,
-  },
-  acceptBtn: {
-    flex: 1, backgroundColor: '#4CAF50', height: 60, borderRadius: 20,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    marginLeft: 10, gap: 8,
-  },
-  declineText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  acceptText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-});
+        .btn-end {
+            background: rgba(255, 59, 48, 0.8);
+        }
+
+        .btn-mute.muted {
+            background: #FF3B30;
+        }
+
+        canvas#snapshot-canvas {
+            display: none;
+        }
+
+        .status-footer {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <header class="header">
+        <div class="logo-group">
+            <span class="logo-icon">🔔</span>
+            <span class="logo-text">SCANBELL</span>
+        </div>
+        <div class="house-badge">House <span id="houseNum">--</span></div>
+    </header>
+
+    <main class="container">
+        <!-- Pre-call UI -->
+        <div class="glass-panel" id="preCall">
+            <div class="camera-preview-container">
+                <video id="preview-video" autoplay playsinline muted></video>
+            </div>
+            <h1>Visitor Access</h1>
+            <p class="sub-message">Look at the camera and ring the doorbell.<br>The resident will see you instantly.</p>
+
+            <button class="ring-btn" id="ringBtn" disabled>Connecting...</button>
+            <div class="status-footer" id="statusLabel">Initializing RTM...</div>
+        </div>
+
+        <!-- In-call UI -->
+        <div class="video-container" id="videoLayout">
+            <div id="remote-video"></div>
+            <div id="local-video-small"></div>
+
+            <div class="call-overlay" id="statusOverlay">
+                <div class="status-pill" id="callStatusText">Ringing...</div>
+                <div class="loader"></div>
+            </div>
+
+            <div class="controls">
+                <button class="icon-btn btn-mute" id="muteBtn" onclick="toggleMute()">🎤</button>
+                <button class="icon-btn btn-end" onclick="endSession()">📞</button>
+            </div>
+            <div id="debug-console"
+                style="margin-top: 10px; font-family: monospace; font-size: 10px; color: #4CAF50; text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; max-height: 80px; overflow-y: auto;">
+            </div>
+        </div>
+    </main>
+
+    <canvas id="snapshot-canvas" width="128" height="128"></canvas>
+
+    <script>
+        const debugConsole = document.getElementById('debug-console');
+        function log(msg) {
+            console.log(msg);
+            const div = document.createElement('div');
+            div.innerText = `> ${msg}`;
+            debugConsole.appendChild(div);
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const appId = urlParams.get('appid') || '469ff9909237486f8e9bf8526e09899c';
+
+        let houseNo = urlParams.get('houseNo');
+        if (!houseNo) {
+            const channel = urlParams.get('channelName') || 'house_32_channel';
+            houseNo = channel.split('_')[1] || '32';
+        }
+
+        const channelName = `house_${houseNo}_channel`;
+        const targetId = `house_${houseNo}`;
+
+        // Use a persistent session ID for RTM, but we will send a unique 
+        // Caller Identity in the payload if needed. 
+        // For now, let's just make the RTM login unique per refresh:
+        const visitorId = "Visitor_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+
+        document.getElementById('houseNum').innerText = houseNo;
+
+        let rtmClient = null;
+        let rtcClient = null;
+        let localTracks = { video: null, audio: null };
+        let signalTimer = null;
+        let isMuted = false;
+        let hasAnswered = false;
+
+        async function init() {
+            try {
+                // 1. Camera Preview
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('preview-video').srcObject = stream;
+
+                // 2. Signaling
+                rtmClient = AgoraRTM.createInstance(appId);
+                await rtmClient.login({ uid: visitorId });
+
+                updateStatus('🟢 System Ready');
+                const ringBtn = document.getElementById('ringBtn');
+                ringBtn.disabled = false;
+                ringBtn.innerText = 'Ring Doorbell';
+
+                rtmClient.on('MessageFromPeer', (message) => {
+                    console.log("[RTM] From Phone:", message.text);
+                    if (message.text === 'CALL_ACCEPTED') {
+                        hasAnswered = true;
+                        clearInterval(signalTimer);
+                        document.getElementById('statusOverlay').classList.add('hidden');
+                    }
+                    if (message.text === 'CALL_REJECTED') {
+                        location.reload();
+                        alert("The resident is currently unavailable.");
+                    }
+                    if (message.text === 'CALL_ENDED') {
+                        console.log("[RTM] Host ended the call");
+                        endSession();
+                    }
+                });
+            } catch (e) {
+                console.error(e);
+                updateStatus('❌ Camera Access Required');
+            }
+        }
+
+        function takeSnapshot() {
+            const canvas = document.getElementById('snapshot-canvas');
+            const video = document.getElementById('preview-video');
+            const ctx = canvas.getContext('2d');
+            if (video.videoWidth > 0) {
+                ctx.drawImage(video, 0, 0, 128, 128);
+                return canvas.toDataURL('image/jpeg', 0.5);
+            }
+            return null;
+        }
+
+        async function ringBell() {
+            const snapshot = takeSnapshot();
+
+            // UI Switch
+            document.getElementById('preCall').classList.add('hidden');
+            document.getElementById('videoLayout').style.display = 'block';
+
+            // Start Signaling Loop
+            const payload = JSON.stringify({ event: 'CALL_REQUEST', image: snapshot });
+            const sendSignal = () => {
+                if (hasAnswered) return;
+                rtmClient.sendMessageToPeer({ text: payload }, targetId)
+                    .then(() => console.log("[RTM] Signal Sent"))
+                    .catch(e => console.error(e));
+            };
+
+            sendSignal();
+            signalTimer = setInterval(sendSignal, 4000);
+
+            // Init RTC
+            try {
+                rtcClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+                rtcClient.on('user-published', async (user, mediaType) => {
+                    await rtcClient.subscribe(user, mediaType);
+                    if (mediaType === 'video') user.videoTrack.play('remote-video');
+                    if (mediaType === 'audio') user.audioTrack.play();
+                });
+
+                [localTracks.audio, localTracks.video] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                localTracks.video.play('local-video-small');
+
+                await rtcClient.join(appId, channelName, null, null);
+                await rtcClient.publish([localTracks.audio, localTracks.video]);
+            } catch (e) {
+                console.error("RTC Error", e);
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            localTracks.audio.setEnabled(!isMuted);
+            const btn = document.getElementById('muteBtn');
+            btn.innerText = isMuted ? '🔇' : '🎤';
+            btn.classList.toggle('muted', isMuted);
+        }
+
+        async function endSession() {
+            clearInterval(signalTimer);
+            if (localTracks.video) localTracks.video.close();
+            if (localTracks.audio) localTracks.audio.close();
+            if (rtcClient) await rtcClient.leave();
+            location.reload();
+        }
+
+        function updateStatus(txt) { document.getElementById('statusLabel').innerText = txt; }
+        document.getElementById('ringBtn').onclick = ringBell;
+
+        init();
+    </script>
+</body>
+
+</html>
