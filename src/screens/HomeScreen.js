@@ -9,9 +9,12 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AgoraRTM from 'agora-rtm-sdk';
+import Sound from 'react-native-sound';
 
 const { width } = Dimensions.get('window');
 const LOGS_STORAGE_KEY = 'doorvi_call_logs';
+let rtmInstance = null;
+let isLoggingIn = false;
 
 export default function HomeScreen({ navigation }) {
   const { userDetails, logout, loading } = useContext(AppContext);
@@ -22,18 +25,18 @@ export default function HomeScreen({ navigation }) {
 
   // RTM Ref for persistent background connection
   const rtmClientRef = useRef(null);
-  const [incomingCall, setIncomingCall] = useState(null); // stores visitor info
+  const [incomingCall, setIncomingCall] = useState(null);
 
   const appId = '469ff9909237486f8e9bf8526e09899c';
   const houseNo = userDetails?.houseNo || '32';
   const channelName = `house_${houseNo}_channel`;
   const rtmUserId = `house_${houseNo}`;
 
-  // ── IMPORTANT: POINT QR CODE TO WEB PAGE (No App Needed) ─────────────────
+  // ── QR CODE PAYLOAD (Web Page) ──────────────────────────────────────
   const BRIDGE_BASE_URL = 'https://alokmaurya2405-droid.github.io/doorvi-call';
   const qrPayload = `${BRIDGE_BASE_URL}/doorvi-visitor-call.html?appid=${appId}&channelName=${channelName}`;
 
-  // ── Local call log helpers ───────────────────────────────────────────────
+  // ── Local call log helpers ──────────────────────────────────────────
   const logCall = async (status) => {
     try {
       const newLog = {
@@ -50,6 +53,38 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
+  const saveCallLog = async (visitorId, status = 'Missed') => {
+    try {
+      const newEntry = {
+        id: Date.now().toString(),
+        visitor: visitorId,
+        timestamp: new Date().toLocaleString('en-GB'),
+        status,
+      };
+      const existingData = await AsyncStorage.getItem('doorvi_logs');
+      const logs = existingData ? JSON.parse(existingData) : [];
+      const updatedLogs = [newEntry, ...logs].slice(0, 50);
+      await AsyncStorage.setItem('doorvi_logs', JSON.stringify(updatedLogs));
+      console.log('[Log] Call saved:', status);
+    } catch (e) {
+      console.error('Failed to save log', e);
+    }
+  };
+
+  const playSystemDoorbell = () => {
+    const systemSound = new Sound('notification_sound', Sound.MAIN_BUNDLE, (error) => {
+      if (error) {
+        const fallbackSound = new Sound('/system/media/audio/notifications/pixiedust.ogg', '', (err) => {
+          if (!err) fallbackSound.play();
+        });
+      } else {
+        systemSound.play((success) => {
+          systemSound.release();
+        });
+      }
+    });
+  };
+
   const loadLogs = async () => {
     try {
       const stored = await AsyncStorage.getItem(LOGS_STORAGE_KEY);
@@ -59,39 +94,39 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  // ── AGORA RTM SIGNALING (PURE JS - STABLE) ───────────────────────────
+  // ── AGORA RTM SIGNALING ─────────────────────────────────────────────
   useEffect(() => {
-    if (loading || rtmClientRef.current) return;
+    if (loading || rtmClientRef.current?.isLoggedIn || isLoggingIn) return;
 
     const initRTM = async () => {
+      isLoggingIn = true;
       try {
-        console.log(`[RTM] 🛡️ Opening secure connection for House: ${houseNo}...`);
-        const client = AgoraRTM.createInstance(appId);
-        rtmClientRef.current = client;
+        if (!rtmInstance) {
+          rtmInstance = AgoraRTM.createInstance(appId);
+        }
+        rtmClientRef.current = rtmInstance;
+        rtmInstance.removeAllListeners();
 
-        client.on('MessageFromPeer', (message, peerId) => {
-          console.log('[RTM] 📥 Signal Received:', message.text, 'from:', peerId);
+        rtmInstance.on('MessageFromPeer', (message, peerId) => {
           if (message.text === 'CALL_REQUEST') {
             setIncomingCall({ visitorId: peerId });
-            Vibration.vibrate([1000, 1000, 1000, 1000], true);
+            playSystemDoorbell();
+            Vibration.vibrate([500, 1000, 500], true);
+            saveCallLog(peerId, 'Missed');
           }
         });
 
-        await client.login({ uid: rtmUserId });
-        console.log('[RTM] ✅ Connection Stable & Active!');
+        await rtmInstance.login({ uid: rtmUserId });
+        rtmClientRef.current.isLoggedIn = true;
+        console.log('[RTM] ✅ Clean Login Successful');
       } catch (err) {
-        console.log('[RTM] ❌ Connection failed:', err.message);
-        rtmClientRef.current = null;
+        console.log('[RTM] ❌ Login Error:', err.reason || err);
+      } finally {
+        isLoggingIn = false;
       }
     };
 
     initRTM();
-    loadLogs();
-
-    return () => {
-      // We only logout when the component actually UNMOUNTS
-      // (Like when logging out to SignIn screen)
-    };
   }, [loading]);
 
   const acceptCall = () => {
@@ -117,7 +152,7 @@ export default function HomeScreen({ navigation }) {
 
   const enterCallRoom = () => {
     logCall('Entered Call Room');
-    navigation.navigate('Call'); // Agora ONLY starts when this screen opens
+    navigation.navigate('Call');
   };
 
   const MenuIcon = ({ icon, label, onPress }) => (
@@ -129,16 +164,8 @@ export default function HomeScreen({ navigation }) {
     </TouchableOpacity>
   );
 
-  const FooterAction = ({ icon, label }) => (
-    <TouchableOpacity style={styles.footerActionItem}>
-      <Ionicons name={icon} size={22} color="white" />
-      <Text style={styles.footerActionLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* ... UI remains the same ... */}
       <View style={styles.header}>
         <View style={styles.crownContainer}>
           <MaterialCommunityIcons name="crown" size={24} color="#FFD700" />
@@ -201,7 +228,6 @@ export default function HomeScreen({ navigation }) {
             <MenuIcon icon="dots-horizontal" label="More" />
           </View>
 
-          {/* Enter Call Room Button — Agora only starts when you press this */}
           <TouchableOpacity style={styles.enterCallBtn} onPress={enterCallRoom}>
             <Ionicons name="videocam" size={22} color="white" />
             <Text style={styles.enterCallBtnText}>Enter Call Room</Text>
@@ -276,7 +302,7 @@ export default function HomeScreen({ navigation }) {
         </Pressable>
       </Modal>
 
-      {/* MODAL 2: QR STICKER */}
+      {/* MODAL 2: QR STICKER (NO DOWNLOAD/SHARE/PRINT BUTTONS) */}
       <Modal transparent visible={showQRSticker} animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setShowQRSticker(false)}>
           <Pressable style={styles.stickerOuterContainer} onPress={e => e.stopPropagation()}>
@@ -305,16 +331,12 @@ export default function HomeScreen({ navigation }) {
                 </View>
               </View>
             </View>
-            <View style={styles.footerActions}>
-              <FooterAction icon="download-outline" label="Download" />
-              <FooterAction icon="print-outline" label="Print" />
-              <FooterAction icon="share-outline" label="Share" />
-            </View>
+            {/* No footer actions anymore */}
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* MODAL 3: INCOMING CALL (SIGNALING) */}
+      {/* MODAL 3: INCOMING CALL */}
       <Modal transparent visible={!!incomingCall} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.incomingCallCard}>
@@ -344,8 +366,6 @@ export default function HomeScreen({ navigation }) {
       <TouchableOpacity style={styles.fab} onPress={enterCallRoom}>
         <Ionicons name="videocam" size={28} color="white" />
       </TouchableOpacity>
-
-
     </SafeAreaView>
   );
 }
@@ -412,12 +432,7 @@ const styles = StyleSheet.create({
   scanCallText: { textAlign: 'center', fontSize: 18, fontWeight: 'bold', color: 'black', marginBottom: 15 },
   bulletBox: { width: '100%', borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 15 },
   bulletText: { fontSize: 12, color: '#666', marginBottom: 5 },
-  footerActions: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 20 },
-  footerActionItem: { alignItems: 'center' },
-  footerActionLabel: { color: 'white', fontSize: 12, marginTop: 5 },
   fab: { position: 'absolute', bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center', elevation: 5 },
-
-  // Incoming Call Styles
   incomingCallCard: {
     width: '85%', backgroundColor: '#1C1C1E', borderRadius: 32,
     padding: 30, alignItems: 'center', elevation: 20,
