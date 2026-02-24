@@ -11,14 +11,27 @@ export default function IncomingCallOverlay() {
     const navigation = useNavigation();
 
     if (!context) return null;
-    const { incomingCall, acceptCall, declineCall, userDetails, sendQuickReply } = context;
-
+const {
+  incomingCall,
+  acceptCall,
+  declineCall,
+  userDetails,
+  sendQuickReply,
+  savedVisitors
+} = context;
     if (!incomingCall) return null;
 
     const handleAccept = () => {
         acceptCall();
         navigation.navigate('Call');
     };
+
+    const visitorId = incomingCall?.visitorId;
+
+const displayName =
+  incomingCall?.visitor_name ||
+  savedVisitors?.[visitorId] ||
+  "Visitor";
 
     return (
         <Modal transparent visible={!!incomingCall} animationType="slide">
@@ -41,10 +54,10 @@ export default function IncomingCallOverlay() {
                         </View>
                     )}
 
-                    <Text style={styles.incomingTitle}>Visitor at Door!</Text>
-                    <Text style={styles.incomingSub}>
-                        Someone is requesting a video call for House {userDetails?.houseNo || 'N/A'}
-                    </Text>
+                   <Text style={styles.incomingTitle}>{displayName} at Door</Text>
+                   <Text style={styles.incomingSub}>
+  {displayName} is requesting a video call for House {userDetails?.houseNo || 'N/A'}
+</Text>
 
                     {/* QUICK REPLIES SECTION */}
                     <View style={styles.quickReplyContainer}>

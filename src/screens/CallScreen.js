@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import {
   View, StyleSheet, PermissionsAndroid, Platform, Text, TouchableOpacity,
-  Dimensions, StatusBar,
+  Dimensions, StatusBar, ScrollView
 } from 'react-native';
 import { AppContext } from '../context/AppContext';
 import {
@@ -17,23 +17,38 @@ import LinearGradient from 'react-native-linear-gradient';
 const { width, height } = Dimensions.get('window');
 
 export default function CallScreen({ navigation }) {
-  const { userDetails, endCallSignal, sendQuickReply } = useContext(AppContext);
+ const {
+  userDetails,
+  endCallSignal,
+  sendQuickReply,
+  incomingCall,
+  savedVisitors,
+  activeCall,        // ← NEW: Access activeCall to check shouldAutoMute
+  isSilentMode,      // ← NEW: Access Silent Mode state for UI indicator
+} = useContext(AppContext);
   const agoraEngineRef = useRef(null);
   const hasTerminated = useRef(false);
   const isMountedRef = useRef(true);
   const timerRef = useRef(null);
-
+  const visitorId = incomingCall?.visitorId;
   const [isJoined, setIsJoined] = useState(false);
   const [remoteUid, setRemoteUid] = useState(0);
   const [status, setStatus] = useState('Initializing...');
-  const [isMuted, setIsMuted] = useState(false);
+  
+  // ── NEW: Auto-mute if Silent Mode was ON when call was accepted ──
+  const [isMuted, setIsMuted] = useState(activeCall?.shouldAutoMute || false);
+  
   const [callDuration, setCallDuration] = useState(0);
 
   const appId = '469ff9909237486f8e9bf8526e09899c';
   const houseNo = userDetails?.houseNo || '32';
   const channelName = `house_${houseNo}_channel`;
-
-  // ── Call Timer ────────────────────────────────────────────────────────────
+  const displayName =
+  incomingCall?.visitor_name ||
+  savedVisitors?.[incomingCall?.visitorId] ||
+  "Visitor";
+  
+  // ── Call Timer ──
   useEffect(() => {
     if (remoteUid !== 0) {
       timerRef.current = setInterval(() => setCallDuration(p => p + 1), 1000);
@@ -50,7 +65,7 @@ export default function CallScreen({ navigation }) {
     return `${mins}:${secs}`;
   };
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  // ── Lifecycle ──
   useEffect(() => {
     isMountedRef.current = true;
     hasTerminated.current = false;
@@ -83,6 +98,12 @@ export default function CallScreen({ navigation }) {
       // LOCK PRIVACY: Admin sees visitor, but visitor sees black/blurred
       engine.muteLocalVideoStream(true);
 
+      // ── NEW: Auto-mute microphone if Silent Mode was ON when call was accepted ──
+      if (activeCall?.shouldAutoMute) {
+        console.log('[CallScreen] 🔇 Auto-muting microphone (Silent Mode)');
+        engine.muteLocalAudioStream(true);
+      }
+
       engine.registerEventHandler({
         onJoinChannelSuccess: () => {
           if (isMountedRef.current) {
@@ -114,9 +135,15 @@ export default function CallScreen({ navigation }) {
     if (hasTerminated.current) return;
     hasTerminated.current = true;
 
-    // Send signal to visitor if we are the one ending the call
+    console.log('[CallScreen] terminateSession called by:', caller);
+
     if (caller !== 'visitor-left') {
-      endCallSignal();
+      try {
+        endCallSignal();
+        console.log('[CallScreen] CALL_ENDED signal sent to visitor');
+      } catch (e) {
+        console.log('[CallScreen] endCallSignal error:', e);
+      }
     }
 
     if (agoraEngineRef.current) {
@@ -171,7 +198,7 @@ export default function CallScreen({ navigation }) {
                 <Ionicons name="person" size={20} color="white" />
               </View>
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.userName}>Visitor at Door</Text>
+                <Text style={styles.userName}>{displayName}</Text>
                 <Text style={styles.houseLabel}>House {houseNo}</Text>
               </View>
             </View>
@@ -180,6 +207,14 @@ export default function CallScreen({ navigation }) {
               <Text style={styles.timerText}>{formatTime(callDuration)}</Text>
             </View>
           </View>
+
+          {/* ── NEW: Silent Mode indicator in top bar ── */}
+          {isSilentMode && (
+            <View style={styles.silentModeIndicator}>
+              <MaterialCommunityIcons name="bell-off" size={14} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.silentModeText}>Silent Mode Active</Text>
+            </View>
+          )}
         </LinearGradient>
       </View>
 
@@ -209,7 +244,7 @@ export default function CallScreen({ navigation }) {
         </ScrollView>
       </View>
 
-      {/* 4. Controls Dock */}
+      {/* 5. Controls Dock */}
       <View style={styles.controlsDock}>
         <LinearGradient
           colors={['rgba(28,28,30,0.85)', 'rgba(28,28,30,0.95)']}
@@ -223,6 +258,12 @@ export default function CallScreen({ navigation }) {
             }}
           >
             <Ionicons name={isMuted ? 'mic-off' : 'mic'} size={26} color="white" />
+            {/* Show indicator if muted due to Silent Mode */}
+            {isMuted && activeCall?.shouldAutoMute && (
+              <View style={styles.autoMuteBadge}>
+                <Text style={styles.autoMuteBadgeText}>AUTO</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.endCallBtn} onPress={() => terminateSession('button')}>
@@ -260,14 +301,51 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30', marginRight: 8 },
   timerText: { color: 'white', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
+  // ── NEW: Silent Mode indicator ──
+  silentModeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(142, 142, 147, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  silentModeText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
   localView: { position: 'absolute', top: 120, right: 20, width: 100, height: 150, borderRadius: 25, overflow: 'hidden', zIndex: 5, elevation: 10 },
   privacyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   privacyLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '700', marginTop: 10, textTransform: 'uppercase' },
 
   controlsDock: { position: 'absolute', bottom: 40, width: width * 0.85, alignSelf: 'center', borderRadius: 35, overflow: 'hidden', elevation: 20 },
   dockGradient: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 10 },
-  controlBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  controlBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', position: 'relative' },
   mutedBtn: { backgroundColor: '#FF3B30' },
+  
+  // ── NEW: Auto-mute badge ──
+  autoMuteBadge: {
+    position: 'absolute',
+    bottom: -2,
+    backgroundColor: '#34C759',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'white',
+  },
+  autoMuteBadgeText: {
+    color: 'white',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  
   endCallBtn: { width: 75, height: 75, borderRadius: 37.5, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center' },
 
   liveQuickReplies: { position: 'absolute', bottom: 140, width: '100%', paddingLeft: 20 },

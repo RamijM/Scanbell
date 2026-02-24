@@ -1,7 +1,7 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  ScrollView, Modal, Dimensions, Pressable, StatusBar, TextInput, Image
+  ScrollView, Modal, Dimensions, Pressable, StatusBar, TextInput, Image, Animated
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { AppContext } from '../context/AppContext';
@@ -9,6 +9,8 @@ import QRCode from 'react-native-qrcode-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// ── NEW: Import Silent Mode Toggle component ──
+import SilentModeToggle from './Silentmodetoggle ';
 
 const { width, height } = Dimensions.get('window');
 const LOGS_STORAGE_KEY = 'doorvi_call_logs';
@@ -21,15 +23,17 @@ export default function HomeScreen({ navigation }) {
     incomingCall,
     acceptCall,
     declineCall,
-    rtmStatus
+    rtmStatus,
+    savedVisitors,
+    isSilentMode,  // ← NEW: Access Silent Mode state for UI updates
   } = useContext(AppContext);
 
   const [showQRSticker, setShowQRSticker] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [showDisableCalls, setShowDisableCalls] = useState(false);
-  const [selectedDuration, setSelectedDuration] = useState('2 Hours');
   const [logs, setLogs] = useState([]);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const houseNo = userDetails?.houseNo || '32';
   const appId = '469ff9909237486f8e9bf8526e09899c';
@@ -37,6 +41,7 @@ export default function HomeScreen({ navigation }) {
 
   const BRIDGE_BASE_URL = 'https://alokmaurya2405-droid.github.io/doorvi-call';
   const qrPayload = `${BRIDGE_BASE_URL}/doorvi-visitor-call.html?appid=${appId}&channelName=${channelName}`;
+
   useEffect(() => {
     const loadLogs = async () => {
       try {
@@ -47,11 +52,23 @@ export default function HomeScreen({ navigation }) {
       }
     };
     loadLogs();
-
-    // Refresh logs periodically or on focus
     const unsubscribe = navigation.addListener('focus', loadLogs);
     return unsubscribe;
   }, [navigation]);
+
+  useEffect(() => {
+    if (incomingCall) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1,    duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
+    }
+  }, [incomingCall]);
 
   const handleAccept = () => {
     acceptCall();
@@ -60,6 +77,14 @@ export default function HomeScreen({ navigation }) {
 
   const enterCallRoom = () => {
     navigation.navigate('Call');
+  };
+
+  const getVisitorDisplayName = () => {
+    if (!incomingCall) return 'Unknown Visitor';
+    const savedName = savedVisitors?.[incomingCall.visitorId];
+    if (savedName) return savedName;
+    if (incomingCall.visitor_name) return incomingCall.visitor_name;
+    return 'Unknown Visitor';
   };
 
   const MenuIcon = ({ icon, label, onPress, color = '#007AFF' }) => (
@@ -75,7 +100,6 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8F9FB" />
 
-      {/* BACKGROUND ACCENT */}
       <View style={styles.bgAccent} />
 
       {/* HEADER */}
@@ -91,6 +115,13 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         <View style={styles.headerRight}>
+          {/* ── NEW: Silent Mode indicator in header ── */}
+          {isSilentMode && (
+            <View style={styles.headerSilentBadge}>
+              <MaterialCommunityIcons name="bell-off" size={14} color="#8E8E93" />
+            </View>
+          )}
+          
           <TouchableOpacity
             style={styles.iconCircle}
             onPress={() => navigation.navigate('Notifications')}
@@ -163,8 +194,6 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.gridText}>Activate</Text>
             </TouchableOpacity>
 
-
-
             <TouchableOpacity style={styles.gridBtn} onPress={() => setShowMore(true)}>
               <View style={styles.gridIconBox}>
                 <Ionicons name="grid" size={24} color="#FFF" />
@@ -190,12 +219,9 @@ export default function HomeScreen({ navigation }) {
               </LinearGradient>
               <Text style={styles.quickLabel}>Guest Msg</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickCard} onPress={() => setShowDisableCalls(true)}>
-              <LinearGradient colors={['#FF2D55', '#FF3B30']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.quickIcon}>
-                <MaterialCommunityIcons name="bell-off" size={24} color="white" />
-              </LinearGradient>
-              <Text style={styles.quickLabel}>Silent Mode</Text>
-            </TouchableOpacity>
+            
+            {/* ── REPLACED: Old "Silent Mode" quick action with new SilentModeToggle component ── */}
+            <SilentModeToggle />
           </ScrollView>
         </View>
 
@@ -230,14 +256,86 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 )}
                 <View style={styles.logTextContainer}>
-                  <Text style={styles.logStatusText}>{item.status.includes('Answered') ? 'Call Answered' : 'Missed Visit'}</Text>
-                  <Text style={styles.logTimeText}>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • House {item.house_no}</Text>
+                  <Text style={styles.logStatusText}>
+                    {savedVisitors?.[item.visitor_id]
+                      ? savedVisitors[item.visitor_id]
+                      : (item.status.includes('Answered') ? 'Call Answered' : 'Missed Visit')}
+                  </Text>
+                  <Text style={styles.logTimeText}>
+                    {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • House {item.house_no}
+                  </Text>
                 </View>
               </View>
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* INCOMING CALL MODAL */}
+      <Modal
+        transparent
+        visible={!!incomingCall}
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={styles.incomingOverlay}>
+          <View style={styles.incomingCallCard}>
+
+            {incomingCall?.image ? (
+              <View style={styles.visitorPhotoWrapper}>
+                <Image
+                  source={{ uri: incomingCall.image }}
+                  style={styles.visitorPhoto}
+                />
+                <Animated.View
+                  style={[
+                    styles.visitorPhotoPulse,
+                    { transform: [{ scale: pulseAnim }] }
+                  ]}
+                />
+              </View>
+            ) : (
+              <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]}>
+                <MaterialCommunityIcons name="doorbell" size={36} color="white" />
+              </Animated.View>
+            )}
+
+            <Text style={styles.incomingTitle}>{getVisitorDisplayName()}</Text>
+
+            <Text style={styles.incomingSub}>
+              {savedVisitors?.[incomingCall?.visitorId]
+                ? '✅ Recognized Visitor at Door'
+                : '🚪 Someone is at your door'}
+            </Text>
+
+            {/* ── NEW: Show Silent Mode indicator in incoming call modal ── */}
+            {isSilentMode && (
+              <View style={styles.incomingSilentBadge}>
+                <MaterialCommunityIcons name="bell-off" size={12} color="#8E8E93" />
+                <Text style={styles.incomingSilentText}>Silent Mode Active</Text>
+              </View>
+            )}
+
+            <View style={styles.incomingHouseBadge}>
+              <MaterialCommunityIcons name="home" size={14} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.incomingHouseText}>House {houseNo}</Text>
+            </View>
+
+            <View style={styles.incomingButtonsRow}>
+              <TouchableOpacity style={styles.declineBtn} onPress={declineCall}>
+                <MaterialCommunityIcons name="phone-hangup" size={28} color="white" />
+                <Text style={styles.incomingBtnText}>Decline</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept}>
+                <MaterialCommunityIcons name="phone" size={28} color="white" />
+                <Text style={styles.incomingBtnText}>Accept</Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
 
       {/* MODALS */}
       <Modal transparent visible={showWelcome} animationType="fade">
@@ -303,56 +401,13 @@ export default function HomeScreen({ navigation }) {
 
               <View style={styles.sheetRow}>
                 <MenuIcon icon="account-plus-outline" label="Members" onPress={() => { setShowMore(false); navigation.navigate('AddMember'); }} />
-                <MenuIcon icon="toggle-switch-outline" label="Silent Mode" onPress={() => { setShowMore(false); setShowDisableCalls(true); }} />
+                <MenuIcon icon="bell-ring-outline" label="Alerts" onPress={() => setShowMore(false)} />
                 <MenuIcon icon="trash-can-outline" label="Delete" color="#FF3B30" onPress={() => { setShowMore(false); }} />
               </View>
             </View>
           </Pressable>
         </Pressable>
       </Modal>
-
-      <Modal transparent visible={showDisableCalls} animationType="fade">
-        <View style={styles.disableOverlay}>
-          <View style={styles.disableCard}>
-            <Text style={styles.disableTitle}>Disable Calls</Text>
-            <View style={styles.warningBox}>
-              <Text style={styles.warningText}>Disabling calls will stop notifications for selected duration.</Text>
-            </View>
-            <View style={styles.durationGrid}>
-              {['2 Hours', '8 Hours', '1 Week', 'Always'].map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.durationBtn, selectedDuration === item && styles.durationBtnActive]}
-                  onPress={() => setSelectedDuration(item)}
-                >
-                  <Text style={[styles.durationBtnText, selectedDuration === item && styles.durationBtnTextActive]}>{item}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Leave a note for visitor..."
-                placeholderTextColor="#AAA"
-                multiline
-              />
-            </View>
-            <View style={styles.actionButtonsRow}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDisableCalls(false)}>
-                <Text style={[styles.actionBtnText, { color: '#8E8E93' }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.disableConfirmBtn} onPress={() => setShowDisableCalls(false)}>
-                <Text style={styles.actionBtnText}>Disable</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={enterCallRoom}>
-        <Ionicons name="add" size={32} color="white" />
-      </TouchableOpacity>
 
       {/* BOTTOM NAV */}
       <View style={styles.bottomNav}>
@@ -406,7 +461,19 @@ const styles = StyleSheet.create({
   },
   greetingText: { fontSize: 12, color: '#8E8E93', fontWeight: '500' },
   usernameText: { fontSize: 18, fontWeight: '700', color: '#1C1C1E' },
-  headerRight: { flexDirection: 'row' },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  
+  // ── NEW: Silent Mode badge in header ──
+  headerSilentBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  
   iconCircle: {
     width: 44,
     height: 44,
@@ -471,8 +538,150 @@ const styles = StyleSheet.create({
   logTextContainer: { flex: 1 },
   logStatusText: { fontWeight: '700', color: '#1C1C1E', fontSize: 15 },
   logTimeText: { color: '#8E8E93', fontSize: 12, marginTop: 2 },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalOverlayDark: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+
+  incomingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  incomingCallCard: {
+    width: '88%',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 35,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.5,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  pulseRing: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 22,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  visitorPhotoWrapper: {
+    width: 100,
+    height: 100,
+    marginBottom: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  visitorPhoto: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: '#007AFF',
+  },
+  visitorPhotoPulse: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 122, 255, 0.4)',
+  },
+  incomingTitle: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  incomingSub: {
+    color: '#8E8E93',
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  
+  // ── NEW: Silent Mode badge in incoming call modal ──
+  incomingSilentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(142, 142, 147, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+    gap: 5,
+  },
+  incomingSilentText: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  
+  incomingHouseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 14,
+    marginBottom: 28,
+    gap: 6,
+  },
+  incomingHouseText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  incomingButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  declineBtn: {
+    flex: 1,
+    backgroundColor: '#FF3B30',
+    height: 65,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: '#34C759',
+    height: 65,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  incomingBtnText: {
+    color: 'white',
+    fontWeight: '700',
+    marginTop: 4,
+    fontSize: 13,
+  },
+
   welcomeCard: { width: '90%', backgroundColor: '#007AFF', borderRadius: 30, padding: 25, alignItems: 'center', marginBottom: 40 },
   welcomeCloseButton: { position: 'absolute', top: 20, right: 20 },
   modalLogoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
@@ -492,14 +701,6 @@ const styles = StyleSheet.create({
   scanCallTextDisplay: { textAlign: 'center', fontSize: 20, fontWeight: '800', color: '#000', marginTop: 20 },
   bulletBox: { width: '100%', borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 20, marginTop: 20 },
   bulletTextItem: { fontSize: 13, color: '#8E8E93', marginBottom: 8, lineHeight: 18 },
-  incomingCallCard: { width: '85%', backgroundColor: '#1C1C1E', borderRadius: 35, padding: 30, alignItems: 'center' },
-  pulseRing: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  incomingTitle: { color: 'white', fontSize: 22, fontWeight: 'bold' },
-  incomingSub: { color: '#8E8E93', textAlign: 'center', marginTop: 10, marginBottom: 25 },
-  incomingButtonsRow: { flexDirection: 'row' },
-  declineBtn: { flex: 1, backgroundColor: '#FF3B30', height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  acceptBtn: { flex: 1, backgroundColor: '#34C759', height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
-  incomingBtnText: { color: 'white', fontWeight: '700', marginTop: 4, fontSize: 12 },
   moreBottomSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 35, borderTopRightRadius: 35, padding: 25, width: '100%' },
   sheetTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
   sheetTitle: { fontSize: 22, fontWeight: '700', color: '#1C1C1E' },
@@ -508,21 +709,6 @@ const styles = StyleSheet.create({
   menuItem: { alignItems: 'center', width: '23%' },
   menuIconContainer: { width: 60, height: 60, backgroundColor: '#F2F2F7', borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   menuLabel: { fontSize: 11, textAlign: 'center', color: '#3A3A3C', fontWeight: '600' },
-  disableOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  disableCard: { width: '90%', backgroundColor: 'white', borderRadius: 30, padding: 25 },
-  disableTitle: { fontSize: 22, fontWeight: '700', textAlign: 'center', color: '#1C1C1E', marginBottom: 20 },
-  durationGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20 },
-  durationBtn: { width: '48%', backgroundColor: '#F2F2F7', paddingVertical: 14, borderRadius: 16, alignItems: 'center', marginBottom: 12 },
-  durationBtnActive: { backgroundColor: '#007AFF' },
-  durationBtnText: { color: '#3A3A3C', fontWeight: '600' },
-  durationBtnTextActive: { color: 'white' },
-  inputContainer: { backgroundColor: '#F2F2F7', borderRadius: 18, padding: 15, height: 100, marginBottom: 25 },
-  textInput: { flex: 1, fontSize: 14, color: '#1C1C1E' },
-  actionButtonsRow: { flexDirection: 'row' },
-  cancelBtn: { flex: 1, backgroundColor: '#F2F2F7', paddingVertical: 16, borderRadius: 16, marginRight: 10, alignItems: 'center' },
-  disableConfirmBtn: { flex: 1, backgroundColor: '#FF3B30', paddingVertical: 16, borderRadius: 16, marginLeft: 10, alignItems: 'center' },
-  actionBtnText: { fontWeight: '700', fontSize: 16 },
-  fab: { position: 'absolute', bottom: 40, right: 25, width: 64, height: 64, borderRadius: 20, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#007AFF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8, zIndex: 999 },
   bottomNav: { position: 'absolute', bottom: 25, left: 20, right: 20, height: 70, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', borderRadius: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
   navItem: { alignItems: 'center' },
   navText: { fontSize: 10, color: '#8E8E93', fontWeight: '600' },
@@ -541,5 +727,5 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: '800',
     letterSpacing: 0.5,
-  }
+  },
 });
